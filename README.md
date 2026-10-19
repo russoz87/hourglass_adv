@@ -54,7 +54,8 @@ debug hint.
 
 **RUNNING** (portrait) - geometric hourglass, `mm:ss` and the sand level;
 **PAUSED** is the same screen with a `Paused` label; **DONE** shows the full lower
-bulb, `Flip to restart`, and plays two short 880 Hz beeps when the sound is on.
+bulb, `Flip to restart`, and plays the two-note completion chime (880 Hz then
+1174 Hz) when the sound is on.
 
 ### Timer model
 
@@ -145,9 +146,9 @@ reader, so these three libraries should be updated together.
 Current image (stage 3):
 
 ```
-RAM:   [==        ]  17.8% (used 58204 bytes from 327680 bytes)
-Flash: [======    ]  60.1% (used 826499 bytes from 1376256 bytes)
-firmware.bin: 861280 bytes
+RAM:   [==        ]  16.1% (used 52764 bytes from 327680 bytes)
+Flash: [======    ]  60.2% (used 828071 bytes from 1376256 bytes)
+firmware.bin: 862864 bytes
 ```
 
 ## Installing on the device
@@ -176,8 +177,8 @@ Install steps:
 Launcher writes an installed app into a single slot at `0x10000` of
 `0x150000` bytes (its `custom_8Mb.csv`, mirrored in `partitions.csv`).
 `board_upload.maximum_size` is set to that size, so `pio run` fails instead of
-producing a binary that cannot be installed. Stage 3 uses 861280 of 1376256
-bytes, leaving ~515 kB.
+producing a binary that cannot be installed. Stage 3 uses 862864 of 1376256
+bytes, leaving ~500 kB.
 
 ## Serial monitor
 

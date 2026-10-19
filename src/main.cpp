@@ -2,7 +2,7 @@
  * Hourglass - stage 3 firmware for the M5Stack Cardputer-ADV.
  *
  * The app is complete: menu and settings, NVS, the timer state machine, IMU
- * orientation, the completion beep, and the falling-sand animation that draws the
+ * orientation, the completion chime, and the falling-sand animation that draws the
  * hourglass. main.cpp wires the modules together: it samples the keyboard and the
  * IMU, feeds the state machine and the simulation, and decides when a screen has
  * to be redrawn.
@@ -39,6 +39,7 @@
 
 #include <M5Cardputer.h>
 #include <cmath>
+#include <esp_system.h>
 
 #include "app_state.h"
 #include "canvas.h"
@@ -57,7 +58,12 @@ constexpr uint32_t kSerialBaud      = 115200;
 constexpr uint32_t kLoopDelayMs     = 5;
 constexpr uint32_t kRunningRenderMs = 50;   // 20 frames per second while running
 constexpr uint8_t  kBrightness      = 128;  // the app is watched for minutes
-constexpr uint8_t  kSpeakerVolume   = 255;  // the chime is soft; the speaker is quiet
+
+// Master volume. The chime is the only sound the app makes and its level is
+// picked against this one (see the chime constants below); 200 of 255 is where
+// the stage 2 build stood (it ran at 128) and leaves the chime a good way below
+// the codec's rail instead of asking the amplifier for everything it has.
+constexpr uint8_t  kSpeakerVolume   = 200;
 
 // The sand advances at the frame rate, not every pass of the loop: the automaton
 // is a whole-grid sweep and has nothing to show between two frames.
@@ -73,23 +79,38 @@ constexpr uint16_t kSandLogSteps = 200;
 // Completion signal: two soft sine notes.
 //
 // A square wave from Speaker::tone is harsh and thin on this speaker, so the
-// chime is built as PCM instead: 16 kHz, 16 bit, mono, raised-cosine fades on
-// both edges of every note so there is no click, and a gap of silence between
-// them. The buffer is generated once in setup() from the constants below - no
-// asset file - and played as a single raw request, which is asynchronous: the
-// timer and the sand keep running while it sounds.
+// chime is built as PCM instead: 16 kHz, 8 bit unsigned (silence = 128), mono,
+// raised-cosine fades on both edges of every note so there is no click, and a
+// gap of silence between them. The buffer is generated once in setup() from the
+// constants below - no asset file - and played as a single raw request, which is
+// asynchronous: the timer and the sand keep running while it sounds.
+//
+// 8 bit unsigned is the format Speaker::tone() plays through
+// (Speaker_Class.hpp: playRaw(const uint8_t*) hands _play_raw flg_16bit = false),
+// so it is the path this device has actually been heard through, and it halves
+// the .bss the buffer costs. The library is not why a 16 bit request stayed
+// quiet: its 16 bit path decodes and scales the data correctly
+// (Speaker_Class.inl: int16_t samples for is_16bit, 8 bit data scaled by 2^8).
+// What was wrong was the level this chime asked for - see below.
+//
+// Level: the speaker here is mono, and the audio task adds the two channels
+// together for a mono output (`l += r`, Speaker_Class.inl), so the peak the
+// codec receives is TWICE the peak of the buffer. The level used to be 0.70 at
+// master volume 255, i.e. 1.4 of full scale: measured through the library's own
+// conversion, 31 % of the samples came out clipped at full scale and the codec
+// plus the amplifier had to hold that for the whole 480 ms blip. 0.45 keeps the
+// mono sum under full scale even at the loudest master volume.
 constexpr uint32_t kChimeRate     = 16000;
 constexpr uint32_t kChimeNoteMs   = 170;
 constexpr uint32_t kChimeGapMs    = 70;
 constexpr uint32_t kChimeFadeMs   = 10;
 constexpr float    kChimeNoteHz[] = {880.0f, 1174.0f};  // A5, then D6
-constexpr float    kChimeLevel    = 0.70f;  // of full scale: headroom for the codec
+constexpr float    kChimeLevel    = 0.45f;  // of full scale, before the mono sum
+constexpr uint8_t  kChimeQuiet    = 128;    // 8 bit unsigned: mid scale is silence
 
 // Two notes and two gaps (one gap after every note, including the last):
-// buildChime() writes exactly this many samples. The previous formula
-// (two notes plus one gap) sized the array 1120 samples short, and the
-// generator ran past the end of it into the globals that follow - the
-// device then crashed in a boot loop right after install.
+// buildChime() writes exactly this many samples. Sizing this for a single gap is
+// what once made the generator write 1120 samples past the end of the buffer.
 constexpr int kChimeSamples =
     static_cast<int>(2 * (kChimeNoteMs + kChimeGapMs) * kChimeRate / 1000);
 
@@ -120,8 +141,28 @@ uint32_t gSandUsSum   = 0;
 uint32_t gSandUsMax   = 0;
 
 // One buffer, filled in setup(): the speaker task reads from it while it plays,
-// so it has to stay alive for as long as the chime can sound. 15 kB of .bss.
-int16_t gChime[kChimeSamples];
+// so it has to stay alive for as long as the chime can sound. 7680 bytes of .bss.
+uint8_t gChime[kChimeSamples];
+
+// Why the device started this time. A reset that happens while the chime plays
+// shows up here on the next boot: `brownout` is the supply sagging under the
+// amplifier, `panic` an exception (with a Guru Meditation line above it).
+const char* resetReasonName(esp_reset_reason_t reason)
+{
+    switch (reason) {
+        case ESP_RST_POWERON:   return "power-on";
+        case ESP_RST_EXT:       return "external pin";
+        case ESP_RST_SW:        return "software";
+        case ESP_RST_PANIC:     return "panic (crash)";
+        case ESP_RST_INT_WDT:   return "interrupt watchdog";
+        case ESP_RST_TASK_WDT:  return "task watchdog";
+        case ESP_RST_WDT:       return "watchdog";
+        case ESP_RST_DEEPSLEEP: return "deep sleep wake";
+        case ESP_RST_BROWNOUT:  return "brownout (supply)";
+        case ESP_RST_SDIO:      return "sdio";
+        default:                return "unknown";
+    }
+}
 
 const char* boardName(m5::board_t board)
 {
@@ -155,7 +196,12 @@ void buildChime()
                                                  static_cast<float>(2 * fade));
             }
 
-            gChime[at++] = static_cast<int16_t>(std::sin(phase) * envelope * kChimeLevel * 32767.0f);
+            // 8 bit unsigned around mid scale: the codec sees the same waveform
+            // a 16 bit buffer would give it. The peak is kChimeLevel * 127, and
+            // the level is below half of full scale, so the value stays inside
+            // [1, 255] with room to spare.
+            const float sample = std::sin(phase) * envelope * kChimeLevel * 127.0f;
+            gChime[at++] = static_cast<uint8_t>(static_cast<float>(kChimeQuiet) + sample + 0.5f);
             phase += step;
             if (phase >= kTwoPi) {
                 phase -= kTwoPi;
@@ -163,7 +209,7 @@ void buildChime()
         }
 
         for (int i = 0; i < static_cast<int>(kChimeGapMs * kChimeRate / 1000); ++i) {
-            gChime[at++] = 0;
+            gChime[at++] = kChimeQuiet;
         }
     }
 }
@@ -173,10 +219,21 @@ void playDoneChime()
     if (!gSettings.soundOn) {
         return;
     }
-    // Non-blocking: the request is queued and the audio task plays it.
-    if (!M5.Speaker.playRaw(gChime, kChimeSamples, kChimeRate, false, 1, -1, true)) {
-        hgLog("audio: chime was not queued");
-    }
+    // Non-blocking: the request is queued and the audio task plays it. 8 bit
+    // unsigned, mono, once, on any free channel, replacing whatever plays now.
+    const bool queued = M5.Speaker.playRaw(gChime, kChimeSamples, kChimeRate,
+                                           /*stereo=*/false, /*repeat=*/1,
+                                           /*channel=*/-1, /*stop_current_sound=*/true);
+
+    // One line that answers the open questions of a device session: was the
+    // request taken, and is the audio path alive with the chime on the wire? If
+    // the device restarts here instead of printing it, the boot log of the next
+    // run has to say why (see resetReasonName).
+    hgLog("audio    : chime %s, playing %u, task %s, heap %lu",
+          queued ? "queued" : "NOT queued",
+          static_cast<unsigned>(M5.Speaker.isPlaying()),
+          M5.Speaker.isRunning() ? "running" : "stopped",
+          static_cast<unsigned long>(ESP.getFreeHeap()));
 }
 
 void applyInterval(uint8_t idx)
@@ -380,6 +437,8 @@ void setup()
     gLastOrientation = gOrientation.update(millis());
 
     Serial.printf("\nHourglass stage 3\n");
+    hgLog("reset    : %s (%d)", resetReasonName(esp_reset_reason()),
+          static_cast<int>(esp_reset_reason()));
     Serial.printf("board    : %s\n", boardName(M5.getBoard()));
     Serial.printf("display  : %dx%d landscape, %dx%d portrait\n", kLandscapeWidth,
                   kLandscapeHeight, kPortraitWidth, kPortraitHeight);
