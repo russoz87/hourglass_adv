@@ -38,7 +38,6 @@
  */
 
 #include <M5Cardputer.h>
-#include <cmath>
 #include <cstdio>
 #include <esp_system.h>
 
@@ -60,11 +59,11 @@ constexpr uint32_t kLoopDelayMs     = 5;
 constexpr uint32_t kRunningRenderMs = 50;   // 20 frames per second while running
 constexpr uint8_t  kBrightness      = 128;  // the app is watched for minutes
 
-// Master volume. The chime is the only sound the app makes; 128 is the level
-// the stage 2 beep played at on this device without a reset, and while the
-// cause of the reset at DONE is still being pinned down the build keeps that
-// proven value (the screen also shows the reset reason - see the menu status
-// line and resetReasonName).
+// Master volume. The completion signal is the only sound the app makes, and it
+// is a full-scale square wave from Speaker::tone: the speaker path sums the two
+// channels for its mono output, so 128 puts the sum exactly on the rail - the
+// loudest setting that does not clip, and clipping is what made louder
+// attempts sound harsher rather than louder.
 constexpr uint8_t  kSpeakerVolume   = 128;
 
 // The sand advances at the frame rate, not every pass of the loop: the automaton
@@ -78,41 +77,22 @@ constexpr uint32_t kMaxSandStepMs = 200;
 // How often the cost of a sand step is reported on the serial log.
 constexpr uint16_t kSandLogSteps = 200;
 
-// Completion signal: two soft sine notes.
+// Completion signal: two short tones, a fourth apart.
 //
-// A square wave from Speaker::tone is harsh and thin on this speaker, so the
-// chime is built as PCM instead: 8 bit unsigned (silence = 128), mono,
-// raised-cosine fades on both edges of every note so there is no click, and a
-// gap of silence between them. The buffer is generated once in setup() from the
-// constants below - no asset file - and played as a single raw request, which is
-// asynchronous: the timer and the sand keep running while it sounds.
-//
-// The rate is the codec's native rate on purpose. At 16 kHz the audio task had
-// to resample 3:1 on the way to the 48 kHz output, and every request that went
-// through that path reset the device (panic); Speaker::tone(), which plays near
-// the output rate, never did. Generating at the native rate removes the only
-// difference between this request and the one that demonstrably works.
-constexpr uint32_t kChimeRate     = 48000;
-constexpr uint32_t kChimeNoteMs   = 170;
-constexpr uint32_t kChimeGapMs    = 70;
-constexpr uint32_t kChimeFadeMs   = 10;
-constexpr float    kChimeNoteHz[] = {880.0f, 1174.0f};  // A5, then D6
-constexpr float    kChimeLevel    = 0.45f;  // of full scale, before the mono sum
-constexpr uint8_t  kChimeQuiet    = 128;    // 8 bit unsigned: mid scale is silence
-
-// Two notes and two gaps (one gap after every note, including the last):
-// buildChime() writes exactly this many samples. Sizing this for a single gap is
-// what once made the generator write 1120 samples past the end of the buffer.
-constexpr int kChimeSamples =
-    static_cast<int>(2 * (kChimeNoteMs + kChimeGapMs) * kChimeRate / 1000);
+// Speaker::tone() is the only audio path this device has run without a reset -
+// every raw PCM request through playRaw() panicked it, at 16 kHz and at the
+// codec's native 48 kHz alike (the investigation and what is still open are
+// recorded in the README backlog). A square wave has no envelope to soften, so
+// the signal is a short two-note figure instead of the two identical beeps the
+// stage 2 build played: the first note sings, the second one, longer and lower,
+// closes it.
+constexpr float    kDoneNoteHz[]  = {880.0f, 1174.66f};  // A5, then D6
+constexpr uint32_t kDoneNoteMs[]  = {120, 200};
+constexpr uint8_t  kDoneNoteCount = 2;
+constexpr uint32_t kDoneNoteGapMs = 60;
 
 // Debug step per arrow press, see the header of this file.
 constexpr float kDebugStep = 0.1f;
-
-// DIAGNOSTIC, to be removed once the panic in the audio path is found: the
-// chime plays by itself a few seconds after boot, so a panic dump can be
-// captured on the serial port without touching the device.
-constexpr uint32_t kAutoChimeAfterMs = 5000;
 
 settings::Store         gSettings;
 app::Session            gSession;
@@ -142,12 +122,11 @@ uint32_t gSandSteps   = 0;
 uint32_t gSandUsSum   = 0;
 uint32_t gSandUsMax   = 0;
 
-// One buffer, filled in setup(): the speaker task reads from it while it plays,
-// so it has to stay alive for as long as the chime can sound. 7680 bytes of .bss.
-uint8_t gChime[kChimeSamples];
-
-// Diagnostic: when set, the chime plays at this uptime (see kAutoChimeAfterMs).
-uint32_t gAutoChimeMs = 0;
+// The completion signal is played one note at a time from the loop: tone()
+// replaces whatever is sounding, so the gap between the calls separates the
+// notes, and nothing blocks while they play.
+uint8_t  gNotesLeft  = 0;
+uint32_t gNextNoteMs = 0;
 
 // Why the device started this time. A reset that happens while the chime plays
 // shows up here on the next boot: `brownout` is the supply sagging under the
@@ -178,72 +157,31 @@ const char* boardName(m5::board_t board)
     }
 }
 
-void buildChime()
-{
-    constexpr float kTwoPi = 6.283185307179586f;
-    const int       fade   = static_cast<int>(kChimeFadeMs * kChimeRate / 1000);
-    int             at     = 0;
-
-    for (float hz : kChimeNoteHz) {
-        const int   count = static_cast<int>(kChimeNoteMs * kChimeRate / 1000);
-        const float step  = kTwoPi * hz / static_cast<float>(kChimeRate);
-        float       phase = 0.0f;
-
-        for (int i = 0; i < count; ++i) {
-            // Raised cosine on both edges: the note starts and ends at zero, so
-            // the speaker gets no step and the chime has no click.
-            float envelope = 1.0f;
-            if (i < fade) {
-                envelope = 0.5f - 0.5f * std::cos(kTwoPi * static_cast<float>(i) /
-                                                 static_cast<float>(2 * fade));
-            } else if (i >= count - fade) {
-                envelope = 0.5f - 0.5f * std::cos(kTwoPi * static_cast<float>(count - 1 - i) /
-                                                 static_cast<float>(2 * fade));
-            }
-
-            // 8 bit unsigned around mid scale: the codec sees the same waveform
-            // a 16 bit buffer would give it. The peak is kChimeLevel * 127, and
-            // the level is below half of full scale, so the value stays inside
-            // [1, 255] with room to spare.
-            const float sample = std::sin(phase) * envelope * kChimeLevel * 127.0f;
-            gChime[at++] = static_cast<uint8_t>(static_cast<float>(kChimeQuiet) + sample + 0.5f);
-            phase += step;
-            if (phase >= kTwoPi) {
-                phase -= kTwoPi;
-            }
-        }
-
-        for (int i = 0; i < static_cast<int>(kChimeGapMs * kChimeRate / 1000); ++i) {
-            gChime[at++] = kChimeQuiet;
-        }
-    }
-}
-
-void playDoneChime()
+// Starts the two-note completion signal. The notes are played one at a time
+// from the loop: tone() replaces whatever is sounding, so the gap between the
+// calls is what separates the notes, and nothing blocks while they play.
+void startDoneChime(uint32_t nowMs)
 {
     if (!gSettings.soundOn) {
         return;
     }
-    // Non-blocking: the request is queued and the audio task plays it. 8 bit
-    // unsigned, mono, once, on any free channel. Nothing else can be sounding
-    // when this is called, so stop_current_sound stays off: the stop path is
-    // one more thing the reset at DONE could come from, and it buys nothing.
-    const bool queued = M5.Speaker.playRaw(gChime, kChimeSamples, kChimeRate,
-                                           /*stereo=*/false, /*repeat=*/1,
-                                           /*channel=*/-1, /*stop_current_sound=*/false);
-
-    // One line that answers the open questions of a device session: was the
-    // request taken, and is the audio path alive with the chime on the wire? If
-    // the device restarts here instead of printing it, the boot log of the next
-    // run has to say why (see resetReasonName).
-    hgLog("audio    : chime %s, playing %u, task %s, heap %lu",
-          queued ? "queued" : "NOT queued",
-          static_cast<unsigned>(M5.Speaker.isPlaying()),
-          M5.Speaker.isRunning() ? "running" : "stopped",
-          static_cast<unsigned long>(ESP.getFreeHeap()));
+    gNotesLeft  = kDoneNoteCount;
+    gNextNoteMs = nowMs;
 }
 
-// Turns the switch around. Switching sound on plays the chime at once: that is
+void serviceChime(uint32_t nowMs)
+{
+    if (gNotesLeft == 0 || static_cast<int32_t>(nowMs - gNextNoteMs) < 0) {
+        return;
+    }
+
+    const uint8_t idx = static_cast<uint8_t>(kDoneNoteCount - gNotesLeft);
+    M5.Speaker.tone(kDoneNoteHz[idx], kDoneNoteMs[idx]);
+    --gNotesLeft;
+    gNextNoteMs = nowMs + kDoneNoteMs[idx] + kDoneNoteGapMs;
+}
+
+// Turns the switch around. Switching sound on plays the signal at once: that is
 // what the switch enables, and it also makes the audio path checkable on the
 // device without waiting out a whole interval.
 void toggleSound()
@@ -251,7 +189,7 @@ void toggleSound()
     gSettings.setSound(!gSettings.soundOn);
     gDirty = true;
     if (gSettings.soundOn) {
-        playDoneChime();
+        startDoneChime(millis());
     }
 }
 
@@ -438,10 +376,6 @@ void setup()
     M5Cardputer.Display.setBrightness(kBrightness);
     M5.Speaker.setVolume(kSpeakerVolume);
 
-    // The chime buffer has to exist before the first DONE can play it; without
-    // this call playRaw() plays the zero-initialised buffer: perfect silence.
-    buildChime();
-
     canvas::begin();
 
     gSettings.load();
@@ -474,10 +408,6 @@ void setup()
           static_cast<unsigned>(kIntervalMinutes[gSettings.intervalIdx]),
           static_cast<unsigned>(gSettings.colorIdx), paletteName(gSettings.colorIdx),
           gSettings.soundOn ? "on" : "off");
-
-    // Diagnostic: the chime plays by itself shortly after boot so that a panic
-    // dump lands in the serial capture without any user action.
-    gAutoChimeMs = millis() + kAutoChimeAfterMs;
 
     gLastTickMs   = millis();
     gLastRenderMs = gLastTickMs;
@@ -529,7 +459,7 @@ void loop()
     if (gSession.state != before) {
         gDirty = true;
         if (gSession.state == AppState::Done) {
-            playDoneChime();
+            startDoneChime(now);
         }
     }
 
@@ -571,11 +501,7 @@ void loop()
         gLastSandMs = now;
     }
 
-    if (gAutoChimeMs != 0 && static_cast<int32_t>(now - gAutoChimeMs) >= 0) {
-        gAutoChimeMs = 0;
-        hgLog("diag     : auto chime test, playing now");
-        playDoneChime();
-    }
+    serviceChime(now);
 
     const bool running = gSession.state == AppState::Running;
     if (gDirty || (running && now - gLastRenderMs >= kRunningRenderMs)) {

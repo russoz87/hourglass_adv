@@ -54,8 +54,8 @@ debug hint.
 
 **RUNNING** (portrait) - geometric hourglass, `mm:ss` and the sand level;
 **PAUSED** is the same screen with a `Paused` label; **DONE** shows the full lower
-bulb, `Flip to restart`, and plays the two-note completion chime (880 Hz then
-1174 Hz) when the sound is on.
+bulb, `Flip to restart`, and plays a two-tone completion signal (A5, then a
+longer D6) through `Speaker::tone()` when the sound is on.
 
 ### Timer model
 
@@ -64,7 +64,7 @@ millisecond deltas in `app_state.cpp`, so the countdown does not depend on the
 frame rate. The side the device is put down on when a cycle starts becomes the
 direction of that cycle: that side makes progress grow, the opposite side makes it
 fall (sand and clock run backwards), lying flat freezes it. Progress reaching 1
-ends the cycle (DONE, beep); falling back to 0 returns to ARMED. Flipping a
+ends the cycle (DONE, signal); falling back to 0 returns to ARMED. Flipping a
 finished hourglass to the other side starts a new cycle, and so does `Enter`.
 
 ### Orientation
@@ -228,14 +228,14 @@ After installing the build:
    clock count up; at the empty bulb the app shows FINISH (the same picture,
    "Flip to start") instead of switching screens, and flipping again starts a
    new cycle.
-7. Let it finish (or walk it with the up key): the chime sounds and DONE shows;
-   flipping to the other edge starts a new cycle. Enter restarts from DONE and
-   FINISH too.
+7. Let it finish (or walk it with the up key): the two-tone signal sounds and
+   DONE shows; flipping to the other edge starts a new cycle. Enter restarts from
+   DONE and FINISH too.
 8. `Del` from RUNNING returns to the menu.
 9. The menu carries a `last boot:` line with the reset reason (`power-on`,
    `brownout`, `panic`, `task watchdog`). After any unexpected restart, that
    line is the first thing to read; the same reason is logged in serial.
-10. In the settings, switching Sound from Off to On plays the chime at once -
+10. In the settings, switching Sound from Off to On plays the signal at once -
    a two-second way to check the audio path without waiting out an interval.
 
 ## Next stages
@@ -249,3 +249,10 @@ After installing the build:
   neck, the timer stays paused.
 - **Improvements (user backlog):** a setting that shows or hides the mm:ss
   readout during the countdown, default on.
+- **Open: a softer completion signal.** The PCM chime (sine, soft fades) cannot
+  be played on this device yet: every `Speaker::playRaw()` request panicked the
+  device - at 16 kHz and at the native 48 kHz, at low and high level, 8 bit and
+  16 bit - while `Speaker::tone()`, which is the path shipped now, never did.
+  The reset reason on the menu reads `panic (4)`; getting the Guru Meditation
+  backtrace off the device (the USB serial capture never came up on this Mac)
+  is the next step, and the sine chime can then be revisited.
