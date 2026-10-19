@@ -85,8 +85,13 @@ constexpr uint32_t kChimeFadeMs   = 10;
 constexpr float    kChimeNoteHz[] = {880.0f, 1174.0f};  // A5, then D6
 constexpr float    kChimeLevel    = 0.70f;  // of full scale: headroom for the codec
 
+// Two notes and two gaps (one gap after every note, including the last):
+// buildChime() writes exactly this many samples. The previous formula
+// (two notes plus one gap) sized the array 1120 samples short, and the
+// generator ran past the end of it into the globals that follow - the
+// device then crashed in a boot loop right after install.
 constexpr int kChimeSamples =
-    static_cast<int>((2 * kChimeNoteMs + kChimeGapMs) * kChimeRate / 1000);
+    static_cast<int>(2 * (kChimeNoteMs + kChimeGapMs) * kChimeRate / 1000);
 
 // Debug step per arrow press, see the header of this file.
 constexpr float kDebugStep = 0.1f;
@@ -115,7 +120,7 @@ uint32_t gSandUsSum   = 0;
 uint32_t gSandUsMax   = 0;
 
 // One buffer, filled in setup(): the speaker task reads from it while it plays,
-// so it has to stay alive for as long as the chime can sound. 13 kB of .bss.
+// so it has to stay alive for as long as the chime can sound. 15 kB of .bss.
 int16_t gChime[kChimeSamples];
 
 const char* boardName(m5::board_t board)
