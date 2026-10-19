@@ -358,6 +358,10 @@ void setup()
     M5Cardputer.Display.setBrightness(kBrightness);
     M5.Speaker.setVolume(kSpeakerVolume);
 
+    // The chime buffer has to exist before the first DONE can play it; without
+    // this call playRaw() plays the zero-initialised buffer: perfect silence.
+    buildChime();
+
     canvas::begin();
 
     gSettings.load();
