@@ -1,14 +1,29 @@
 /*
- * Hourglass - stage 1 bring-up firmware for the M5Stack Cardputer-ADV.
+ * Hourglass - stage 2 firmware for the M5Stack Cardputer-ADV.
  *
- * This stage only proves that the hardware and the toolchain work on the real
- * device: display, keyboard (TCA8418 over I2C on the ADV) and IMU (BMI270).
- * The timer, the falling-sand animation and the settings UI come in later
- * stages, so nothing here is written as if it were the final application.
+ * This stage is the frame of the app: module structure, menu and settings, NVS,
+ * the timer state machine, orientation from the IMU and the completion beep. The
+ * falling-sand animation is stage 3 and is deliberately not here yet: the
+ * hourglass scene fills its bulbs proportionally to the timer progress.
  *
- * Screen (landscape, 240x135): the detected board, the last key event, the
- * raw accelerometer/gyroscope values, the IMU sample counter and the uptime.
- * The same values are printed on the USB serial port at 115200 baud.
+ * main.cpp only wires the modules together: it samples the keyboard and the IMU,
+ * feeds the state machine and decides when a screen has to be redrawn.
+ *
+ *   app_state.*       states, transitions, sand progress (milliseconds, not frames)
+ *   orientation.*     accelerometer -> side / flat / unstable, debounced
+ *   settings.*        NVS namespace "hourglass"
+ *   ui_menu.*         menu and settings screens (landscape)
+ *   hourglass_view.*  ARMED / RUNNING / PAUSED / DONE (portrait rotated frame)
+ *   canvas.*          the off-screen sprites for the two frames
+ *   palette.h         the eight preset colours
+ *   input.*           keyboard press events
+ *
+ * Two debug paths exist because the app has to be usable while the IMU pose is
+ * off: Enter in ARMED skips the "place on side" step, and in RUNNING/PAUSED the
+ * up/down keys move progress by 10 % per press. If the device is lying flat the
+ * state machine pauses right after a forced start - that is what flat means -
+ * and the arrow keys still move the sand, which is enough to walk through all
+ * the screens without an IMU.
  *
  * Build:   pio run
  * Install: copy .pio/build/cardputer-adv/firmware.bin to a microSD card and
@@ -18,52 +33,52 @@
 
 #include <M5Cardputer.h>
 
+#include "app_state.h"
+#include "canvas.h"
+#include "hourglass_view.h"
+#include "input.h"
+#include "log.h"
+#include "orientation.h"
+#include "palette.h"
+#include "settings.h"
+#include "ui_menu.h"
+
 namespace {
 
-// ------------------------------------------------------------------- timing
+constexpr uint32_t kSerialBaud      = 115200;
+constexpr uint32_t kLoopDelayMs     = 5;
+constexpr uint32_t kRunningRenderMs = 50;   // 20 frames per second while running
+constexpr uint8_t  kBrightness      = 128;  // the app is watched for minutes
+constexpr uint8_t  kSpeakerVolume   = 128;
 
-constexpr uint32_t kSerialBaud     = 115200;
-constexpr uint32_t kRenderPeriodMs = 100;  // ~10 screen updates per second
-constexpr uint32_t kImuLogPeriodMs = 500;  // serial IMU trace, twice per second
+// Completion signal: two short beeps at 880 Hz.
+constexpr float    kBeepHz    = 880.0f;
+constexpr uint32_t kBeepMs    = 110;
+constexpr uint32_t kBeepGapMs = 150;
+constexpr uint8_t  kDoneBeeps = 2;
 
-// ------------------------------------------------------------------ display
+// Debug step per arrow press, see the header of this file.
+constexpr float kDebugStep = 0.1f;
 
-constexpr int kScreenWidth  = 240;  // landscape frame: Display.setRotation(1)
-constexpr int kScreenHeight = 135;
+settings::Store         gSettings;
+app::Session            gSession;
+OrientationTracker      gOrientation;
+KeyScanner              gKeys;
+uint8_t                 gMenuCursor = 0;
+ui_menu::SettingsCursor gSettingsCursor;
 
-constexpr uint16_t kColorBackground = TFT_BLACK;
-constexpr uint16_t kColorTitle      = TFT_CYAN;
-constexpr uint16_t kColorLabel      = TFT_LIGHTGREY;
-constexpr uint16_t kColorValue      = TFT_WHITE;
-constexpr uint16_t kColorHighlight  = TFT_GOLD;
-constexpr uint16_t kColorRule       = TFT_DARKGREY;
-constexpr uint16_t kColorError      = TFT_RED;
+Orientation gLastOrientation = Orientation::Unstable;
 
-// Left edge of every row, and the column the values start at.
-constexpr int kRowLeft   = 6;
-constexpr int kValueLeft = 72;
-
-// --------------------------------------------------------------------- state
-
-// The screen is composed in an off-screen buffer to avoid flicker. If the
-// sprite cannot be allocated (it needs ~64 kB) drawing falls back to the
-// display itself; both are LovyanGFX surfaces, so the drawing code is shared.
-LGFX_Sprite gCanvas(&M5Cardputer.Display);
-lgfx::LovyanGFX* gTarget = &M5Cardputer.Display;
-
-String   gLastKey    = "-";
-String   gLastMods   = "-";
-uint32_t gKeyEvents  = 0;
-
-uint32_t gImuSamples = 0;
-
+// Static screens are redrawn when they change, the running countdown on a fixed
+// interval: an idle screen must not cost anything.
+bool     gDirty        = true;
 uint32_t gLastRenderMs = 0;
-uint32_t gLastImuLogMs = 0;
+uint32_t gLastTickMs   = 0;
 
-// ------------------------------------------------------------------ helpers
+// The beeps are queued and played from the loop, so nothing blocks the timer.
+uint8_t  gBeepsLeft  = 0;
+uint32_t gNextBeepMs = 0;
 
-// Human readable name for the board M5GFX detected. On the ADV this is the
-// value that selects the TCA8418 keyboard reader, so it is worth showing.
 const char* boardName(m5::board_t board)
 {
     switch (board) {
@@ -73,187 +88,165 @@ const char* boardName(m5::board_t board)
     }
 }
 
-// Label for one character of Keyboard.keysState().word. That vector holds the
-// raw key-map values, so control keys arrive as their KEY_* codes.
-String keyLabel(char raw)
+void startDoneBeeps(uint32_t nowMs)
 {
-    const uint8_t code = static_cast<uint8_t>(raw);
-
-    switch (code) {
-        case KEY_BACKSPACE:  return "BACKSPACE";
-        case KEY_TAB:        return "TAB";
-        case KEY_ENTER:      return "ENTER";
-        case KEY_LEFT_CTRL:  return "CTRL";
-        case KEY_LEFT_SHIFT: return "SHIFT";
-        case KEY_LEFT_ALT:   return "ALT";
-        case KEY_OPT:        return "OPT";
-        case KEY_FN:         return "FN";
-        case ' ':            return "SPACE";
-        default:             break;
+    if (!gSettings.soundOn) {
+        return;
     }
-
-    if (code >= 0x20 && code < 0x7F) {
-        return String(static_cast<char>(code));
-    }
-
-    char buffer[8];
-    snprintf(buffer, sizeof(buffer), "0x%02X", code);
-    return String(buffer);
+    gBeepsLeft  = kDoneBeeps;
+    gNextBeepMs = nowMs;
 }
 
-void appendModifier(String& mods, const char* name)
+void serviceBeeps(uint32_t nowMs)
 {
-    if (mods.length() > 0) {
-        mods += '+';
-    }
-    mods += name;
-}
-
-// ------------------------------------------------------------------- polling
-
-void pollKeyboard()
-{
-    auto& keyboard = M5Cardputer.Keyboard;
-
-    // isChange() reports a change of the list of held keys; a release is a
-    // change too, and then we keep the last press on screen.
-    if (!keyboard.isChange() || !keyboard.isPressed()) {
+    // Signed difference: safe across the millis() wrap after ~49 days.
+    if (gBeepsLeft == 0 || static_cast<int32_t>(nowMs - gNextBeepMs) < 0) {
         return;
     }
 
-    const auto& state = keyboard.keysState();
-    ++gKeyEvents;
+    M5.Speaker.tone(kBeepHz, kBeepMs);
+    --gBeepsLeft;
+    gNextBeepMs = nowMs + kBeepMs + kBeepGapMs;
+}
 
-    String keys;
-    for (char raw : state.word) {
-        if (keys.length() > 0) {
-            keys += '+';
+void applyInterval(uint8_t idx)
+{
+    gSettings.setInterval(idx);
+    app::setInterval(gSession, gSettings.intervalIdx);
+    gMenuCursor = gSettings.intervalIdx;
+}
+
+void openSettings()
+{
+    gSettingsCursor = ui_menu::cursorForColor(gSettings.colorIdx);
+    app::enter(gSession, AppState::Settings, "settings opened");
+}
+
+// The only place that knows how a key maps to an action in each state.
+void handleKey(const KeyPress& key)
+{
+    switch (gSession.state) {
+        case AppState::Menu:
+            if (key.up && gMenuCursor > 0) {
+                --gMenuCursor;
+                gDirty = true;
+            }
+            if (key.down && gMenuCursor + 1 < ui_menu::kMenuItemCount) {
+                ++gMenuCursor;
+                gDirty = true;
+            }
+            if (key.ch >= '1' && key.ch <= '7') {
+                applyInterval(static_cast<uint8_t>(key.ch - '1'));
+                gDirty = true;
+            }
+            if (key.ch == 's') {
+                openSettings();
+            }
+            if (key.enter || key.ok) {
+                if (gMenuCursor == ui_menu::kMenuSettingsItem) {
+                    openSettings();
+                } else {
+                    applyInterval(gMenuCursor);
+                    gSession.progress = 0.0f;
+                    app::enter(gSession, AppState::Armed, "start pressed");
+                }
+            }
+            if (key.back) {
+                // There is no parent screen: the Launcher owns the boot choice,
+                // so the app cannot exit to it by itself.
+                hgLog("menu: no screen to go back to");
+            }
+            break;
+
+        case AppState::Settings: {
+            const bool onSoundRow = gSettingsCursor.onSound();
+
+            if (key.up || key.down) {
+                const int dy    = (key.down ? 1 : 0) - (key.up ? 1 : 0);
+                gSettingsCursor = ui_menu::moveCursor(gSettingsCursor, 0, dy);
+                if (!gSettingsCursor.onSound()) {
+                    // Moving onto a swatch selects it: the preview is the
+                    // confirmation and the choice goes to NVS right away.
+                    gSettings.setColor(gSettingsCursor.paletteIdx());
+                }
+                gDirty = true;
+            }
+
+            if (key.left || key.right) {
+                if (onSoundRow) {
+                    gSettings.setSound(!gSettings.soundOn);
+                } else {
+                    const int dx    = (key.right ? 1 : 0) - (key.left ? 1 : 0);
+                    gSettingsCursor = ui_menu::moveCursor(gSettingsCursor, dx, 0);
+                    gSettings.setColor(gSettingsCursor.paletteIdx());
+                }
+                gDirty = true;
+            }
+
+            if ((key.enter || key.ok || key.ch == ' ') && onSoundRow) {
+                gSettings.setSound(!gSettings.soundOn);
+                gDirty = true;
+            }
+
+            if (key.back) {
+                app::enter(gSession, AppState::Menu, "settings closed");
+                gMenuCursor = ui_menu::kMenuSettingsItem;
+            }
+            break;
         }
-        keys += keyLabel(raw);
+
+        case AppState::Armed:
+            if (key.enter || key.ok) {
+                // Debug path: start without the IMU. The frame keeps the side it
+                // has, so the picture is the same as after a real placement.
+                hgLog("debug: forced start without IMU");
+                app::startCycle(gSession, gSession.shownSide, "forced start");
+            }
+            if (key.back) {
+                app::toMenu(gSession, "back");
+            }
+            break;
+
+        case AppState::Running:
+        case AppState::Paused:
+            // Debug path: move progress without the IMU, 10 % per press. It works
+            // in both states, so a demo does not depend on the device being held
+            // exactly on a side.
+            if (key.up) {
+                app::nudge(gSession, kDebugStep);
+                gDirty = true;
+            }
+            if (key.down) {
+                app::nudge(gSession, -kDebugStep);
+                gDirty = true;
+            }
+            if (key.back) {
+                app::toMenu(gSession, "back");
+            }
+            break;
+
+        case AppState::Done:
+            if (key.enter || key.ok) {
+                app::startCycle(gSession, gSession.doneSide, "restart");
+            }
+            if (key.back) {
+                app::toMenu(gSession, "back");
+            }
+            break;
     }
-    gLastKey = keys.length() > 0 ? keys : "(no character)";
-
-    String mods;
-    if (state.fn)    appendModifier(mods, "FN");
-    if (state.shift) appendModifier(mods, "SHIFT");
-    if (state.ctrl)  appendModifier(mods, "CTRL");
-    if (state.opt)   appendModifier(mods, "OPT");
-    if (state.alt)   appendModifier(mods, "ALT");
-    gLastMods = mods.length() > 0 ? mods : "-";
-
-    Serial.printf("[key] %s   mods: %s   held: %u   events: %lu\n",
-                  gLastKey.c_str(), gLastMods.c_str(),
-                  static_cast<unsigned>(keyboard.isPressed()),
-                  static_cast<unsigned long>(gKeyEvents));
 }
-
-void pollImu()
-{
-    // update() returns the mask of sensors that produced a fresh sample, so a
-    // non-zero mask is exactly one new reading.
-    if (M5.Imu.update() == m5::IMU_Class::sensor_mask_none) {
-        return;
-    }
-
-    ++gImuSamples;
-
-    if (millis() - gLastImuLogMs < kImuLogPeriodMs) {
-        return;
-    }
-    gLastImuLogMs = millis();
-
-    const auto& data = M5.Imu.getImuData();
-    Serial.printf("[imu] accel [g] %+6.3f %+6.3f %+6.3f   gyro [dps] %+7.2f %+7.2f %+7.2f\n",
-                  data.accel.x, data.accel.y, data.accel.z,
-                  data.gyro.x, data.gyro.y, data.gyro.z);
-}
-
-// ------------------------------------------------------------------ drawing
 
 void render()
 {
-    auto& g = *gTarget;
-    const auto& imu = M5.Imu.getImuData();
+    const uint16_t color = paletteColor(gSettings.colorIdx);
 
-    g.fillScreen(kColorBackground);
-    g.setTextWrap(false);
-
-    g.setTextSize(2);
-    g.setTextColor(kColorTitle);
-    g.setCursor(kRowLeft, 4);
-    g.print("Hourglass bring-up");
-
-    g.drawFastHLine(kRowLeft, 26, kScreenWidth - 2 * kRowLeft, kColorRule);
-
-    g.setTextSize(1);
-
-    // Board detection drives the keyboard reader and the display setup, so it
-    // is the first thing to check when something looks wrong.
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 32);
-    g.print("Board  :");
-    g.setTextColor(kColorValue);
-    g.setCursor(kValueLeft, 32);
-    g.print(boardName(M5.getBoard()));
-
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 44);
-    g.print("Key    :");
-    g.setTextColor(kColorHighlight);
-    g.setCursor(kValueLeft, 44);
-    g.print(gLastKey);
-
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 56);
-    g.print("Mods   :");
-    g.setTextColor(kColorValue);
-    g.setCursor(kValueLeft, 56);
-    g.print(gLastMods);
-
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 68);
-    g.print("Events :");
-    g.setTextColor(kColorValue);
-    g.setCursor(kValueLeft, 68);
-    g.printf("%lu  (held %u)", static_cast<unsigned long>(gKeyEvents),
-             static_cast<unsigned>(M5Cardputer.Keyboard.isPressed()));
-
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 80);
-    g.print("Accel g:");
-    g.setTextColor(kColorValue);
-    g.setCursor(kValueLeft, 80);
-    g.printf("%+7.3f %+7.3f %+7.3f", imu.accel.x, imu.accel.y, imu.accel.z);
-
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 92);
-    g.print("Gyro dps:");
-    g.setTextColor(kColorValue);
-    g.setCursor(kValueLeft, 92);
-    g.printf("%+7.2f %+7.2f %+7.2f", imu.gyro.x, imu.gyro.y, imu.gyro.z);
-
-    const bool imuEnabled = M5.Imu.isEnabled();
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 104);
-    g.print("IMU    :");
-    g.setTextColor(imuEnabled ? kColorValue : kColorError);
-    g.setCursor(kValueLeft, 104);
-    if (imuEnabled) {
-        g.printf("enabled, %lu samples", static_cast<unsigned long>(gImuSamples));
-    } else {
-        g.print("not detected");
-    }
-
-    g.setTextColor(kColorLabel);
-    g.setCursor(kRowLeft, 116);
-    g.print("Uptime :");
-    g.setTextColor(kColorValue);
-    g.setCursor(kValueLeft, 116);
-    g.printf("%lu.%01lu s", static_cast<unsigned long>(millis() / 1000),
-             static_cast<unsigned long>((millis() / 100) % 10));
-
-    if (gTarget == &gCanvas) {
-        gCanvas.pushSprite(0, 0);
+    switch (gSession.state) {
+        case AppState::Menu:     ui_menu::drawMenu(gMenuCursor, gSettings); break;
+        case AppState::Settings: ui_menu::drawSettings(gSettingsCursor, gSettings); break;
+        case AppState::Armed:    hourglass_view::drawArmed(gSession, color); break;
+        case AppState::Running:  hourglass_view::drawRunning(gSession, color, false); break;
+        case AppState::Paused:   hourglass_view::drawRunning(gSession, color, true); break;
+        case AppState::Done:     hourglass_view::drawDone(gSession, color); break;
     }
 }
 
@@ -266,42 +259,82 @@ void setup()
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);  // true: initialise the keyboard
 
-    M5Cardputer.Display.setRotation(1);  // landscape, 240x135
-    M5Cardputer.Display.setBrightness(128);
+    M5Cardputer.Display.setRotation(kRotationLandscape);
+    M5Cardputer.Display.setBrightness(kBrightness);
+    M5.Speaker.setVolume(kSpeakerVolume);
 
-    gCanvas.setColorDepth(16);
-    if (gCanvas.createSprite(kScreenWidth, kScreenHeight) != nullptr) {
-        gTarget = &gCanvas;
-    } else {
-        Serial.println("[ui] sprite allocation failed, drawing directly");
-    }
+    canvas::begin();
 
-    Serial.printf("\nHourglass bring-up\n");
-    Serial.printf("board         : %s\n", boardName(M5.getBoard()));
-    Serial.printf("display       : %dx%d, rotation %u\n",
-                  static_cast<int>(M5Cardputer.Display.width()),
-                  static_cast<int>(M5Cardputer.Display.height()),
-                  static_cast<unsigned>(M5Cardputer.Display.getRotation()));
-    Serial.printf("keyboard      : %s\n",
-                  M5.getBoard() == m5::board_t::board_M5CardputerADV ? "TCA8418 (ADV)" : "io matrix");
-    Serial.printf("IMU           : %s\n", M5.Imu.isEnabled() ? "enabled" : "not detected");
-    Serial.printf("serial        : %lu baud\n\n", static_cast<unsigned long>(kSerialBaud));
+    gSettings.load();
+    app::setInterval(gSession, gSettings.intervalIdx);
+    gMenuCursor = gSettings.intervalIdx;
 
-    render();
+    gOrientation.begin(millis());
+    gLastOrientation = gOrientation.update(millis());
+
+    Serial.printf("\nHourglass stage 2\n");
+    Serial.printf("board    : %s\n", boardName(M5.getBoard()));
+    Serial.printf("display  : %dx%d landscape, %dx%d portrait\n", kLandscapeWidth,
+                  kLandscapeHeight, kPortraitWidth, kPortraitHeight);
+    Serial.printf("keyboard : %s\n",
+                  M5.getBoard() == m5::board_t::board_M5CardputerADV ? "TCA8418 (ADV)"
+                                                                     : "io matrix");
+    hgLog("imu      : %s", M5.Imu.isEnabled() ? "enabled" : "not detected");
+    hgLog("sprites  : %s", canvas::usingSprites() ? "landscape + portrait" : "not allocated");
+    hgLog("heap     : %lu bytes free", static_cast<unsigned long>(ESP.getFreeHeap()));
+    hgLog("settings : interval %u min, color %u (%s), sound %s",
+          static_cast<unsigned>(kIntervalMinutes[gSettings.intervalIdx]),
+          static_cast<unsigned>(gSettings.colorIdx), paletteName(gSettings.colorIdx),
+          gSettings.soundOn ? "on" : "off");
+
+    gLastTickMs   = millis();
+    gLastRenderMs = gLastTickMs;
+    gDirty        = true;
 }
 
 void loop()
 {
-    M5Cardputer.update();  // refreshes buttons, keyboard and power state
+    M5Cardputer.update();
 
-    pollKeyboard();
-    pollImu();
+    const uint32_t now    = millis();
+    const AppState before = gSession.state;
 
-    const uint32_t now = millis();
-    if (now - gLastRenderMs >= kRenderPeriodMs) {
+    const KeyPress key = gKeys.poll();
+    if (key.any) {
+        hgLog("key: %s (fn %u shift %u ctrl %u opt %u alt %u)", keyPressName(key),
+              static_cast<unsigned>(key.fn), static_cast<unsigned>(key.shift),
+              static_cast<unsigned>(key.ctrl), static_cast<unsigned>(key.opt),
+              static_cast<unsigned>(key.alt));
+        handleKey(key);
+    }
+
+    const Orientation orientation = gOrientation.update(now);
+    if (orientation != gLastOrientation) {
+        gLastOrientation = orientation;
+        app::onOrientation(gSession, orientation);
+        gDirty = true;
+    }
+
+    app::update(gSession, now - gLastTickMs);
+    gLastTickMs = now;
+
+    if (gSession.state != before) {
+        gDirty = true;
+        if (gSession.state == AppState::Done) {
+            startDoneBeeps(now);
+        } else {
+            gBeepsLeft = 0;  // leaving DONE drops what is left of the signal
+        }
+    }
+
+    serviceBeeps(now);
+
+    const bool running = gSession.state == AppState::Running;
+    if (gDirty || (running && now - gLastRenderMs >= kRunningRenderMs)) {
+        gDirty        = false;
         gLastRenderMs = now;
         render();
     }
 
-    delay(10);
+    delay(kLoopDelayMs);
 }
