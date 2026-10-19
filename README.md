@@ -129,10 +129,6 @@ pio run                 # builds the default env: cardputer-adv
 
 The image ends up in `.pio/build/cardputer-adv/firmware.bin`.
 
-`pio run` builds **both** environments defined in `platformio.ini`: the app
-and the separate audio probe (`cardputer-adv-probe`, built only from
-`src/probe/`).
-
 Pinned versions, all set in `platformio.ini` - they are the result of
 bisecting real device panics, not defaults:
 
@@ -159,7 +155,7 @@ Current image (stage 3):
 ```
 RAM:   [=         ]  12.2% (used  39948 bytes from 327680 bytes)
 Flash: [====      ]  37.0% (used 508581 bytes from 1376256 bytes)
-firmware.bin: 508944 bytes  (probe app: 489264 bytes / 35.5%)
+firmware.bin: 508944 bytes
 ```
 
 ## Installing on the device
@@ -208,8 +204,6 @@ platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 scripts/guard_usb_flash.py  blocks upload/erase targets
 src/                        application modules, see the table above
-src/probe/                  audio probe app (own environment `cardputer-adv-probe`,
-                            builds itself to bisect the audio path on the device)
 tests/                      host tests for the sand simulation (g++, no
                             Arduino): g++ -std=c++17 -O2 -I src
                             tests/sand_test.cpp src/sand.cpp
@@ -228,9 +222,10 @@ tests/                      host tests for the sand simulation (g++, no
   speaker stack has made it back into the build. The pins in
   `platformio.ini` (espressif32 6.13.0, M5Unified 0.2.20, M5GFX 0.2.27) were
   found by bisecting exactly this - the ES8311 reset family of
-  espressif/esp-idf#18621 - so restore the pins first;
-  `cardputer-adv-probe` is the on-device bench for any further audio
-  experiments.
+  espressif/esp-idf#18621 - so restore the pins first. The throwaway probe
+  firmware that had bisected this was removed once the sound was confirmed
+  on the device; it is in the git history around the `9da7d92` commit if
+  another on-device audio bench is ever needed.
 
 ## Check on the device
 
@@ -271,12 +266,13 @@ After installing the build:
 - **Improvements (user backlog):** a setting that shows or hides the mm:ss
   readout during the countdown, default on.
 - **Open: a softer completion signal.** The shipped signal is the two-tone
-  `Speaker::tone()` call (A5, then a longer D6). What made it possible at all
-  is the toolchain pin: on arduino-esp32 3.x every speaker call reset the
-  board (see Troubleshooting); on the pinned 2.0.17 generation the audio is
-  proven on this hardware, and the speaker is started once at boot the way
-  AdvanceOS does it - no `end()` dance. The soft PCM chime
-  (`Speaker::playRaw()`, sine with fades) is still parked: it stayed silent
-  at low levels and reset at high ones. `cardputer-adv-probe` (`src/probe/`,
-  built by `pio run`) is the on-device bench for the next round of
-  experiments.
+  `Speaker::tone()` call (A5, then a longer D6), confirmed playing on the
+  device. What made it possible at all is the toolchain pin: on
+  arduino-esp32 3.x every speaker call reset the board (see
+  Troubleshooting); on the pinned 2.0.17 generation the audio is proven on
+  this hardware, and the speaker is started once at boot the way AdvanceOS
+  does it - no `end()` dance. The soft PCM chime (`Speaker::playRaw()`,
+  sine with fades) is still parked: it stayed silent at low levels and
+  reset at high ones. The audio probe that bisected the panics was removed
+  after the confirmation; resurrect it from git history (`9da7d92`) as the
+  bench for the next round of experiments.

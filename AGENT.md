@@ -49,15 +49,12 @@ USB-flashed firmware.
 ## Commands
 
 ```sh
-pio run            # builds BOTH envs: cardputer-adv (app) and
-                   # cardputer-adv-probe (audio probe app)
+pio run            # single environment: cardputer-adv (the app)
 pio device monitor --baud 115200   # USB CDC is enabled on boot
 ```
 
-Artifacts: `.pio/build/cardputer-adv/firmware.bin` and
-`.pio/build/cardputer-adv-probe/firmware.bin` (the probe is a throwaway
-device test for the audio subsystem; it is standalone, built only from
-`src/probe/`, and is installed like any other Launcher app).
+Artifact: `.pio/build/cardputer-adv/firmware.bin` - install it into the
+device from the Launcher SD menu; never flash it over USB.
 
 Host tests (the sand simulation is plain C++, no Arduino):
 
@@ -93,9 +90,12 @@ Facts that keep code honest:
   without the device. The screen-down pose is still **unconfirmed** on device.
 - Audio: speaker is configured once at boot (AdvanceOS style:
   `sample_rate = 96000`, no `end()` dance) and the completion signal is
-  `Speaker::tone()` (A5, then a longer D6). `Speaker::playRaw()` has not
-  played anything on this board yet - the softer PCM chime is parked in
-  README "Next stages" until the probe proves it.
+  `Speaker::tone()` (A5, then a longer D6) - confirmed playing on the
+  device. `Speaker::playRaw()` has not produced a sound on this board yet -
+  the softer PCM chime is parked in README "Next stages". The probe
+  firmware that bisected the panic was removed after the confirmation;
+  resurrect it from git history (commit `9da7d92`) when a new on-device
+  audio experiment bench is needed.
 
 ## Debugging without the IMU (flat on a desk)
 
