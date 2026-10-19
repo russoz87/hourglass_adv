@@ -42,9 +42,7 @@ SettingsCursor cursorForColor(uint8_t colorIdx);
 // wrapping: on a 4x3 grid wrapping is more confusing than helpful.
 SettingsCursor moveCursor(SettingsCursor cursor, int dx, int dy);
 
-// `bootStatus` is the "last boot: ..." line under the rows; an empty string
-// draws nothing.
-void drawMenu(uint8_t cursor, const settings::Store& store, const char* bootStatus);
+void drawMenu(uint8_t cursor, const settings::Store& store);
 
 void drawSettings(const SettingsCursor& cursor, const settings::Store& store);
 

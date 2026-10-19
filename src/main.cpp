@@ -38,7 +38,6 @@
  */
 
 #include <M5Cardputer.h>
-#include <cstdio>
 #include <esp_system.h>
 
 #include "app_state.h"
@@ -104,11 +103,6 @@ ui_menu::SettingsCursor gSettingsCursor;
 
 Orientation gLastOrientation = Orientation::Unstable;
 
-// Shown at the bottom of the menu: why the device started this time. After a
-// reset that is the first thing the screen says - the reason itself is gone by
-// the time the app runs.
-char gBootStatus[40] = "";
-
 // Static screens are redrawn when they change, the running countdown on a fixed
 // interval: an idle screen must not cost anything.
 bool     gDirty        = true;
@@ -129,8 +123,9 @@ uint8_t  gNotesLeft  = 0;
 uint32_t gNextNoteMs = 0;
 
 // Why the device started this time. A reset that happens while the chime plays
-// shows up here on the next boot: `brownout` is the supply sagging under the
-// amplifier, `panic` an exception (with a Guru Meditation line above it).
+// shows up here in the serial log on the next boot: `brownout` is the supply
+// sagging under the amplifier, `panic` an exception (with a Guru Meditation
+// line above it).
 const char* resetReasonName(esp_reset_reason_t reason)
 {
     switch (reason) {
@@ -356,7 +351,7 @@ void render()
     const uint16_t color = paletteColor(gSettings.colorIdx);
 
     switch (gSession.state) {
-        case AppState::Menu:     ui_menu::drawMenu(gMenuCursor, gSettings, gBootStatus); break;
+        case AppState::Menu:     ui_menu::drawMenu(gMenuCursor, gSettings); break;
         case AppState::Settings: ui_menu::drawSettings(gSettingsCursor, gSettings); break;
         case AppState::Armed:    hourglass_view::drawArmed(gSession, color); break;
         case AppState::Running:  hourglass_view::drawRunning(gSession, gSim, color, false); break;
@@ -411,8 +406,6 @@ void setup()
     Serial.printf("\nHourglass stage 3\n");
     const esp_reset_reason_t bootReason = esp_reset_reason();
     hgLog("reset    : %s (%d)", resetReasonName(bootReason), static_cast<int>(bootReason));
-    snprintf(gBootStatus, sizeof(gBootStatus), "last boot: %s (%d)", resetReasonName(bootReason),
-             static_cast<int>(bootReason));
     Serial.printf("board    : %s\n", boardName(M5.getBoard()));
     Serial.printf("display  : %dx%d landscape, %dx%d portrait\n", kLandscapeWidth,
                   kLandscapeHeight, kPortraitWidth, kPortraitHeight);

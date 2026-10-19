@@ -102,9 +102,8 @@ Facts that keep code honest:
 - `Enter` in ARMED starts the countdown. In RUNNING/PAUSED the up/down keys
   move progress by 10 % per press - that walks run/done/beep/restart on a
   flat device.
-- The menu carries `last boot:` with the reset reason (`power-on`, `brownout`,
-  `panic`, `task watchdog`). After any unexpected restart, read that line
-  first, and the same reason is in the serial log - every line is prefixed
-  with uptime ms.
+- The serial log opens with the reset reason (`reset:` line: `power-on`,
+  `brownout`, `panic`, `task watchdog`). After an unexpected restart that is
+  the first thing to read - every log line is prefixed with uptime ms.
 - If the screen shows `Board : unknown`, a lib version was changed (see Hard
   rules #3) or the build flags `ARDUINO_M5STACK_CARDPUTER` were dropped.

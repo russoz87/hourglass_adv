@@ -99,6 +99,7 @@ reported as `Unstable`, which stops the sand like a flat pose does.
 
 ```
 Hourglass stage 3
+[hg      3] reset    : power-on (1)
 board    : M5Cardputer-ADV
 display  : 240x135 landscape, 135x240 portrait
 keyboard : TCA8418 (ADV)
@@ -153,9 +154,9 @@ pair is pinned at 0.2.20 / 0.2.27 and must only move together.
 Current image (stage 3):
 
 ```
-RAM:   [=         ]  12.2% (used  39948 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 508581 bytes from 1376256 bytes)
-firmware.bin: 508944 bytes
+RAM:   [=         ]  12.2% (used  39908 bytes from 327680 bytes)
+Flash: [====      ]  36.9% (used 508501 bytes from 1376256 bytes)
+firmware.bin: 508864 bytes
 ```
 
 ## Installing on the device
@@ -218,14 +219,14 @@ tests/                      host tests for the sand simulation (g++, no
   expected at I2C address 0x68/0x69 on the internal bus (SDA 8, SCL 9).
 - **No keyboard events** - the ADV keyboard sits behind a TCA8418 at 0x34 on
   the same bus, with GPIO11 as interrupt line.
-- **Reset at the completion chime (menu `last boot: panic`)** - a newer
-  speaker stack has made it back into the build. The pins in
-  `platformio.ini` (espressif32 6.13.0, M5Unified 0.2.20, M5GFX 0.2.27) were
-  found by bisecting exactly this - the ES8311 reset family of
-  espressif/esp-idf#18621 - so restore the pins first. The throwaway probe
-  firmware that had bisected this was removed once the sound was confirmed
-  on the device; it is in the git history around the `9da7d92` commit if
-  another on-device audio bench is ever needed.
+- **Reset at the completion chime** (the serial `reset:` line then reads
+  `panic (crash)`) - a newer speaker stack has made it back into the build.
+  The pins in `platformio.ini` (espressif32 6.13.0, M5Unified 0.2.20,
+  M5GFX 0.2.27) were found by bisecting exactly this - the ES8311 reset
+  family of espressif/esp-idf#18621 - so restore the pins first. The
+  throwaway probe firmware that had bisected this was removed once the
+  sound was confirmed on the device; it is in the git history around the
+  `9da7d92` commit if another on-device audio bench is ever needed.
 
 ## Check on the device
 
@@ -248,9 +249,9 @@ After installing the build:
    DONE shows; flipping to the other edge starts a new cycle. Enter restarts from
    DONE and FINISH too.
 8. `Del` from RUNNING returns to the menu.
-9. The menu carries a `last boot:` line with the reset reason (`power-on`,
-   `brownout`, `panic`, `task watchdog`). After any unexpected restart, that
-   line is the first thing to read; the same reason is logged in serial.
+9. The serial log carries the reset reason at boot (`reset:` line:
+   `power-on`, `brownout`, `panic`, `task watchdog`). After an unexpected
+   restart, that line is the first thing to read.
 10. In the settings, switching Sound from Off to On plays the signal at once -
    a two-second way to check the audio path without waiting out an interval.
 
