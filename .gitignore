@@ -15,3 +15,7 @@ compile_commands.json
 # Build artefacts that must never be committed
 *.elf
 *.map
+
+# The installable .bin files are kept at the repo root, untracked: they are
+# per-build outputs, copy them to microSD instead (see README "Installing").
+*.bin
