@@ -1,0 +1,17 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+compile_commands.json
+
+# Editors / tools
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# Build artefacts that must never be committed
+*.elf
+*.map
