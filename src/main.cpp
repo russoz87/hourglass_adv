@@ -378,17 +378,19 @@ void setup()
     M5Cardputer.Display.setRotation(kRotationLandscape);
     M5Cardputer.Display.setBrightness(kBrightness);
 
-    // Audio, the way the shipped Cardputer-ADV apps set it up (Enso does the
-    // same end/config/begin dance): the speaker M5Cardputer.begin() leaves
-    // behind has a small DMA buffer and an unpinned task, and that is the one
-    // configuration on this board that has ever panicked when it was asked to
-    // play - the defaults here are the ones an ADV audio app runs with.
-    M5.Speaker.end();
+    // Audio, the way AdvanceOS - the shipped Cardputer-ADV app whose sounds
+    // are proven on this board - sets it up. It never calls Speaker.end()
+    // before the first sound, it just asks for a higher sample rate and
+    // starts the speaker once, at boot, so the ES8311 codec and the I2S
+    // channel are up long before anything plays. (Its extra M5.begin() with
+    // external_speaker flags is a no-op: M5.begin() refuses to run twice, and
+    // the Cardputer-ADV setup ignores those flags - so it is not replicated
+    // here.) The earlier end/config/begin dance with a bigger DMA buffer is
+    // what the diagnostic probe tested; it did not help, and AdvanceOS does
+    // not do it.
     {
         auto speakerCfg        = M5.Speaker.config();
-        speakerCfg.dma_buf_len = 512;
-        speakerCfg.dma_buf_count = 8;
-        speakerCfg.task_pinned_core = APP_CPU_NUM;
+        speakerCfg.sample_rate = 96000;
         M5.Speaker.config(speakerCfg);
     }
     M5.Speaker.begin();
