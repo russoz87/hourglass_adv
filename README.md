@@ -98,7 +98,7 @@ reported as `Unstable`, which stops the sand like a flat pose does.
 ### Serial log
 
 ```
-Hourglass stage 2
+Hourglass stage 3
 board    : M5Cardputer-ADV
 display  : 240x135 landscape, 135x240 portrait
 keyboard : TCA8418 (ADV)
@@ -129,26 +129,37 @@ pio run                 # builds the default env: cardputer-adv
 
 The image ends up in `.pio/build/cardputer-adv/firmware.bin`.
 
-Pinned versions, all set in `platformio.ini`:
+`pio run` builds **both** environments defined in `platformio.ini`: the app
+and the separate audio probe (`cardputer-adv-probe`, built only from
+`src/probe/`).
+
+Pinned versions, all set in `platformio.ini` - they are the result of
+bisecting real device panics, not defaults:
 
 | Component | Version |
 | --- | --- |
-| Platform `espressif32` | 8.0.0 (Arduino core 3.3.12) |
-| Board | `m5stack-cardputer` |
+| Platform `espressif32` | 6.13.0 (Arduino core 2.0.17) |
+| Board | `m5stack-stamps3`, with `ARDUINO_M5STACK_CARDPUTER` and USB CDC flags |
 | `m5stack/M5Cardputer` | 1.1.1 |
-| `m5stack/M5Unified` | 0.2.26 |
-| `m5stack/M5GFX` | 0.2.33 |
+| `m5stack/M5Unified` | 0.2.20 |
+| `m5stack/M5GFX` | 0.2.27 |
 
-`M5Cardputer` 1.1.x needs `M5Unified`/`M5GFX` recent enough to detect
-`board_M5CardputerADV`; that detection is what picks the TCA8418 keyboard
-reader, so these three libraries should be updated together.
+The Cardputer-ADV board manifest only exists in `espressif32` >= 8.0.0 - the
+generation whose speaker stack resets the board on every audio call (see
+Troubleshooting) - so this build uses the StampS3 the device is made from,
+with the `ARDUINO_M5STACK_CARDPUTER` marker and CDC-on-boot flags set
+manually, the way the shipped AdvanceOS apps configure it. `M5Cardputer`
+1.1.x needs `M5Unified`/`M5GFX` recent enough to detect `board_M5CardputerADV`
+(that detection is what picks the TCA8418 keyboard reader); newer `M5Unified`
+(0.2.22+) reworks the speaker task and panics on this board, which is why the
+pair is pinned at 0.2.20 / 0.2.27 and must only move together.
 
 Current image (stage 3):
 
 ```
-RAM:   [==        ]  16.1% (used 52764 bytes from 327680 bytes)
-Flash: [======    ]  60.2% (used 828071 bytes from 1376256 bytes)
-firmware.bin: 862864 bytes
+RAM:   [=         ]  12.2% (used  39948 bytes from 327680 bytes)
+Flash: [====      ]  37.0% (used 508581 bytes from 1376256 bytes)
+firmware.bin: 508944 bytes  (probe app: 489264 bytes / 35.5%)
 ```
 
 ## Installing on the device
@@ -177,8 +188,8 @@ Install steps:
 Launcher writes an installed app into a single slot at `0x10000` of
 `0x150000` bytes (its `custom_8Mb.csv`, mirrored in `partitions.csv`).
 `board_upload.maximum_size` is set to that size, so `pio run` fails instead of
-producing a binary that cannot be installed. Stage 3 uses 862864 of 1376256
-bytes, leaving ~500 kB.
+producing a binary that cannot be installed. Stage 3 uses 508581 of 1376256
+bytes, leaving ~850 kB.
 
 ## Serial monitor
 
@@ -186,7 +197,8 @@ bytes, leaving ~500 kB.
 pio device monitor --baud 115200
 ```
 
-USB CDC is enabled on the board (`DARDUINO_USB_CDC_ON_BOOT=1`), so the log
+USB CDC is enabled (`-DARDUINO_USB_CDC_ON_BOOT=1` is set in `platformio.ini`,
+because the StampS3 manifest does not enable it), so the log
 appears on the USB-C port the device is already connected through.
 
 ## Project layout
@@ -196,6 +208,8 @@ platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 scripts/guard_usb_flash.py  blocks upload/erase targets
 src/                        application modules, see the table above
+src/probe/                  audio probe app (own environment `cardputer-adv-probe`,
+                            builds itself to bisect the audio path on the device)
 tests/                      host tests for the sand simulation (g++, no
                             Arduino): g++ -std=c++17 -O2 -I src
                             tests/sand_test.cpp src/sand.cpp
@@ -210,6 +224,13 @@ tests/                      host tests for the sand simulation (g++, no
   expected at I2C address 0x68/0x69 on the internal bus (SDA 8, SCL 9).
 - **No keyboard events** - the ADV keyboard sits behind a TCA8418 at 0x34 on
   the same bus, with GPIO11 as interrupt line.
+- **Reset at the completion chime (menu `last boot: panic`)** - a newer
+  speaker stack has made it back into the build. The pins in
+  `platformio.ini` (espressif32 6.13.0, M5Unified 0.2.20, M5GFX 0.2.27) were
+  found by bisecting exactly this - the ES8311 reset family of
+  espressif/esp-idf#18621 - so restore the pins first;
+  `cardputer-adv-probe` is the on-device bench for any further audio
+  experiments.
 
 ## Check on the device
 
@@ -249,15 +270,13 @@ After installing the build:
   neck, the timer stays paused.
 - **Improvements (user backlog):** a setting that shows or hides the mm:ss
   readout during the countdown, default on.
-- **Open: a softer completion signal.** The PCM chime (sine, soft fades) cannot
-  be played on this device yet: every `Speaker::playRaw()` request panicked the
-  device - at 16 kHz and at the native 48 kHz, at low and high level, 8 bit and
-  16 bit - and so did `Speaker::tone()` in these builds, while the same call was
-  heard in stage 2. The speaker is now reconfigured the way the shipped
-  Cardputer-ADV apps do it (stop the default speaker, `dma_buf_len` 512, task
-  pinned to the app core, start again - see Enso), which is the one difference
-  from a configuration that is known to work on this board. The reset reason on
-  the menu reads `panic (4)`; if it happens again, the next step is a minimal
-  reproduction firmware (speaker + one tone, nothing else) to separate the app
-  from the audio subsystem, and getting the Guru Meditation backtrace off the
-  device.
+- **Open: a softer completion signal.** The shipped signal is the two-tone
+  `Speaker::tone()` call (A5, then a longer D6). What made it possible at all
+  is the toolchain pin: on arduino-esp32 3.x every speaker call reset the
+  board (see Troubleshooting); on the pinned 2.0.17 generation the audio is
+  proven on this hardware, and the speaker is started once at boot the way
+  AdvanceOS does it - no `end()` dance. The soft PCM chime
+  (`Speaker::playRaw()`, sine with fades) is still parked: it stayed silent
+  at low levels and reset at high ones. `cardputer-adv-probe` (`src/probe/`,
+  built by `pio run`) is the on-device bench for the next round of
+  experiments.
