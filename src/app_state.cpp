@@ -18,7 +18,11 @@ void resolveEdge(app::Session& session)
     } else if (session.progress <= 0.0f) {
         session.progress = 0.0f;
         session.flow     = 0;
-        app::enter(session, AppState::Armed, "sand ran back up");
+        // The sand ran all the way back: the countdown is over, but the app stays
+        // on the hourglass screen. Flipping the device starts the next cycle, so
+        // remember the side it ended on.
+        session.doneSide = session.shownSide;
+        app::enter(session, AppState::Finish, "sand ran back up");
     }
 }
 
@@ -33,6 +37,7 @@ const char* appStateName(AppState state)
         case AppState::Running:  return "Running";
         case AppState::Paused:   return "Paused";
         case AppState::Done:     return "Done";
+        case AppState::Finish:   return "Finish";
     }
     return "?";
 }
@@ -66,6 +71,11 @@ void app::formatClock(uint32_t seconds, char* buffer, std::size_t size)
 {
     snprintf(buffer, size, "%02lu:%02lu", static_cast<unsigned long>(seconds / 60u),
              static_cast<unsigned long>(seconds % 60u));
+}
+
+float app::frameLowerShare(const Session& session)
+{
+    return session.shownSide == session.forward ? session.progress : 1.0f - session.progress;
 }
 
 void app::setInterval(Session& session, uint8_t intervalIdx)
@@ -138,10 +148,13 @@ bool app::onOrientation(Session& session, Orientation orientation)
             break;
 
         case AppState::Done:
+        case AppState::Finish:
             // A finished hourglass is restarted by flipping it over: the full
-            // lower bulb becomes the upper one of a new cycle.
+            // bulb becomes the upper one of a new cycle.
             if (isSide(orientation) && orientation != session.doneSide) {
-                startCycle(session, orientation, "flipped after done");
+                startCycle(session, orientation,
+                           session.state == AppState::Done ? "flipped after done"
+                                                           : "flipped after finish");
             }
             break;
 

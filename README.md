@@ -5,22 +5,26 @@ An hourglass (sand timer) firmware for the **M5Stack Cardputer-ADV**
 ES8311 codec). Putting the device on its side starts the countdown, turning it
 over reverses it, and laying it flat pauses it - like a real hourglass.
 
-## Status: stage 2 - application frame
+## Status: stage 3 - falling sand
 
-The app runs: menu and settings, NVS, timer state machine, IMU orientation and the
-completion beep. The falling-sand animation is **stage 3** and is not here yet: the
-hourglass scene fills its bulbs proportionally to the timer progress.
+The app runs: menu and settings, NVS, timer state machine, IMU orientation, the
+completion chime, and the falling-sand animation. The sand is a cellular
+automaton (`src/sand.h`): the neck is a valve that drips the load over exactly
+the interval, and a flip rotates the grid instead of rebuilding the scene, so
+the picture never jumps. Only the settings preview keeps the proportional fill.
 
 ### Modules
 
 | File | Responsibility |
 | --- | --- |
-| `src/main.cpp` | wiring: samples keyboard and IMU, feeds the state machine, decides when to redraw, plays the beeps |
+| `src/main.cpp` | wiring: samples keyboard and IMU, feeds the state machine and the simulation, decides when to redraw, plays the chime |
 | `src/app_state.*` | `AppState`, the transitions, sand progress integrated from millisecond deltas |
 | `src/orientation.*` | accelerometer -> side / flat / unstable, filtered and debounced |
 | `src/settings.*` | NVS namespace `hourglass`: `interval_idx`, `color_idx`, `sound_on` |
 | `src/ui_menu.*` | menu and settings screens (landscape) |
-| `src/hourglass_view.*` | ARMED / RUNNING / PAUSED / DONE (portrait rotated frame) |
+| `src/hourglass_view.*` | ARMED / RUNNING / PAUSED / DONE / FINISH (portrait rotated frame) |
+| `src/sand.*` | falling-sand simulation: platform independent, host-tested |
+| `src/vessel.h` | the shape of the glass, shared by the drawing and the grid |
 | `src/canvas.*` | one sprite per frame, each pushed in a single transfer |
 | `src/palette.h` | the eight preset colours and the fixed UI colours |
 | `src/input.*` | key press events |
@@ -138,12 +142,12 @@ Pinned versions, all set in `platformio.ini`:
 `board_M5CardputerADV`; that detection is what picks the TCA8418 keyboard
 reader, so these three libraries should be updated together.
 
-Current image (stage 2):
+Current image (stage 3):
 
 ```
-RAM:   [=         ]   8.7% (used 28516 bytes from 327680 bytes)
-Flash: [======    ]  59.6% (used 820263 bytes from 1376256 bytes)
-firmware.bin: 854912 bytes
+RAM:   [==        ]  17.8% (used 58204 bytes from 327680 bytes)
+Flash: [======    ]  60.1% (used 826499 bytes from 1376256 bytes)
+firmware.bin: 861280 bytes
 ```
 
 ## Installing on the device
@@ -172,8 +176,8 @@ Install steps:
 Launcher writes an installed app into a single slot at `0x10000` of
 `0x150000` bytes (its `custom_8Mb.csv`, mirrored in `partitions.csv`).
 `board_upload.maximum_size` is set to that size, so `pio run` fails instead of
-producing a binary that cannot be installed. Stage 2 uses 854912 of 1376256
-bytes, leaving ~520 kB for the falling-sand simulation.
+producing a binary that cannot be installed. Stage 3 uses 861280 of 1376256
+bytes, leaving ~515 kB.
 
 ## Serial monitor
 
@@ -191,6 +195,9 @@ platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 scripts/guard_usb_flash.py  blocks upload/erase targets
 src/                        application modules, see the table above
+tests/                      host tests for the sand simulation (g++, no
+                            Arduino): g++ -std=c++17 -O2 -I src
+                            tests/sand_test.cpp src/sand.cpp
 ```
 
 ## Troubleshooting
@@ -217,17 +224,16 @@ After installing the build:
 5. `mm:ss` counts down and the lower bulb fills; laying it flat shows `Paused` and
    freezes both. Putting it back on the same edge resumes.
 6. Flipping to the other edge during the countdown makes the level recede and the
-   clock count up; at the empty bulb the app returns to ARMED.
-7. Let it finish (or walk it with the up key): two beeps and DONE; flipping to
-   the other edge starts a new cycle.
+   clock count up; at the empty bulb the app shows FINISH (the same picture,
+   "Flip to start") instead of switching screens, and flipping again starts a
+   new cycle.
+7. Let it finish (or walk it with the up key): the chime sounds and DONE shows;
+   flipping to the other edge starts a new cycle. Enter restarts from DONE and
+   FINISH too.
 8. `Del` from RUNNING returns to the menu.
 
 ## Next stages
 
-- **Stage 3:** falling-sand cellular automaton in the portrait frame, in one
-  colour, with the real stream through the neck. It replaces the two bulb fills
-  in `drawHourglass()` (`src/hourglass_view.cpp`); `progress` already gives it the
-  level and `session.flow` the direction.
 - **Later:** a way back into the Launcher from the app (that needs the Launcher's
   boot-entry convention), and dropping the raw IMU trace once the axis table is
   confirmed on the device.

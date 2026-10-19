@@ -9,12 +9,16 @@
  *   Menu --start--> Armed --placed on a side--> Running
  *   Running <--back on a side-- Paused <--laid flat-- Running
  *   Running --progress reaches 1--> Done --flip / Enter--> Running (new cycle)
- *   Running --rewound to 0--> Armed
+ *   Running --rewound to 0--> Finish --flip / Enter--> Running (new cycle)
  *   any state --Del (Esc)--> Menu
  *
  * The side the sand runs to is fixed when a cycle starts; standing on the other
  * side makes progress fall again (the sand and the clock run backwards), which
- * is what a flipped hourglass is supposed to look like.
+ * is what a flipped hourglass is supposed to look like. Once a cycle has begun
+ * the app stays in the portrait hourglass world: both ends of the countdown end
+ * in a finished hourglass - DONE after the interval, FINISH after the sand ran
+ * back up - and both wait for a flip. ARMED is only the landscape hint before
+ * the very first placement.
  */
 #pragma once
 
@@ -35,6 +39,7 @@ enum class AppState : uint8_t
     Running, // sand falling, progress moving towards 1
     Paused,  // laid flat: sand and clock hold still
     Done,    // progress is 1, waiting for a flip or for Enter
+    Finish,  // progress is 0 again after a rewind, waiting for a flip or Enter
 };
 
 const char* appStateName(AppState state);
@@ -75,6 +80,14 @@ void toMenu(Session& session, const char* reason);
 
 // Applies an orientation change. Returns true when the state changed.
 bool onOrientation(Session& session, Orientation orientation);
+
+// Share of the drawn lower bulb that holds sand right now. `progress` counts
+// towards the forward side, but the picture is drawn in the frame of the side the
+// device is standing on: standing on the opposite side turns the picture over,
+// so the bulb the sand has run into is the upper one of the frame. The sand
+// simulation is governed against this share, and the drawing of it agrees by
+// construction.
+float frameLowerShare(const Session& session);
 
 // Integrates the countdown. Returns true when the state changed.
 bool update(Session& session, uint32_t dtMs);

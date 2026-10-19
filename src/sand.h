@@ -1,0 +1,143 @@
+/*
+ * Falling-sand simulation of the hourglass.
+ *
+ * Platform independent on purpose: no M5 or Arduino headers, no clock, no
+ * drawing. Time comes in as a millisecond delta, so the same module runs in the
+ * firmware and in the host tests (tests/sand_test.cpp).
+ *
+ * The grid covers the inside of the drawn portrait vessel, one cell per pixel
+ * (100 x 159 cells). A cell holds at most one grain; `kGrains` grains are about
+ * 72 % of the upper bulb's area, which fills it to ~85 % of its height.
+ *
+ * Three mechanisms:
+ *
+ *   gravity  - the classic automaton: a grain falls if it can, else tries one of
+ *              the two downward diagonals, else it stays. Rows are swept from
+ *              the bottom up with the sweep direction drawn at random per row,
+ *              so a pile has no preferred side.
+ *   valve    - a token bucket on the neck. `kGrains / durationMs` grains may
+ *              cross it per millisecond, so a 30 minute hourglass drips its
+ *              3000 grains over 30 minutes and a 1 minute one over a minute.
+ *              Natural physics would empty a bulb in seconds; the valve is what
+ *              makes the animation last as long as the interval. With the timer
+ *              stopped no token is added and nothing crosses.
+ *   governor - the timer is the truth, the grain count is not. The governor
+ *              compares the grains below the throat with the share `lowerShare`
+ *              says round(lowerShare * kGrains) and repairs what the automaton
+ *              alone cannot: it releases grains from the face of the upper pile
+ *              into the neck when the sand is behind. In the other direction it
+ *              is a debug path only (see govern()).
+ *
+ * A flip is not a rebuild of the scene: the grid is rotated 180 degrees, so the
+ * sand keeps its place in the hand while the frame turns with the device. The
+ * bulb that was full at the bottom becomes the upper one and drains from then
+ * on, which is the rewind. Sand never runs upwards on its own.
+ */
+#pragma once
+
+#include <cstdint>
+
+#include "vessel.h"
+
+namespace sand {
+
+// One grain per pixel. kCellPx = 2 would halve the grid in each direction and
+// cost a quarter of the work, at the price of visibly blocky sand.
+constexpr int kCellPx = 1;
+
+constexpr int kGridWidth  = 2 * kPortraitVessel.halfWidth;                      // 100
+constexpr int kGridHeight = kPortraitVessel.bottom - kPortraitVessel.top + 1;   // 159
+
+// Row of the throat. Grains in this row and below it have run through the neck.
+constexpr int kNeckRow = kPortraitVessel.neck - kPortraitVessel.top;            // 78
+
+// Where the grid sits in the portrait frame: cell (col, row) is the pixel
+// (kOriginX + col, kOriginY + row).
+constexpr int kOriginX = kPortraitVessel.centerX - kPortraitVessel.halfWidth;   // 17
+constexpr int kOriginY = kPortraitVessel.top;                                  // 46
+
+// Number of grains. Upper bulb: 4190 cells, so 3000 fills it to y = 58, that is
+// 85 % of its height; the lower bulb is 4288 cells wide (a little more, the two
+// bulbs are 78 and 80 rows tall) and ends up at the same level.
+constexpr int kGrains = 3000;
+
+// Half width of the grid at a grid row. The grid is the part of the vessel that
+// survives a flip: the narrower of a row and the row it is reflected onto. The
+// upper bulb is 78 rows tall and the lower one 80, so at the same distance from
+// the neck the lower bulb is up to two pixels wider; taking the narrower one
+// means a flip can never push a grain through the glass and leave it stuck
+// against a wall. The gap that opens at the wall is at most two pixels and sits
+// under the drawn outline (see the constructor in sand.cpp).
+int halfWidthOfRow(int row);
+
+class Simulation
+{
+public:
+    Simulation();
+
+    // A cycle starts: every grain settled in the upper bulb, nothing below the
+    // throat. `durationMs` is the interval, which only sets the valve rate.
+    void reset(uint32_t durationMs);
+
+    // The device was turned over: rotate the grid 180 degrees. The grains keep
+    // their physical place, the frame around them turns, and the share that had
+    // run into the lower bulb is above the neck from now on.
+    void flip();
+
+    // Advances the sand by `dtMs`. `lowerShare` is the share of the drawn lower
+    // bulb that should hold sand (app::frameLowerShare), `flowing` is false
+    // while the timer holds still, and then nothing crosses the neck.
+    void step(uint32_t dtMs, float lowerShare, bool flowing);
+
+    // True when the last step moved nothing: the pile is at rest and the caller
+    // can stop animating the picture.
+    bool settled() const { return _settled; }
+
+    // Grains below the throat, in the frame that is drawn right now.
+    int grainsBelow() const { return _below; }
+
+    // Grid access for the renderer.
+    static constexpr int width() { return kGridWidth; }
+    static constexpr int height() { return kGridHeight; }
+
+    bool cell(int col, int row) const
+    {
+        if (col < 0 || col >= kGridWidth || row < 0 || row >= kGridHeight) {
+            return false;
+        }
+        return _cells[row * kGridWidth + col] != 0;
+    }
+
+private:
+    // Valid columns of a row: [first, last], inclusive. Rows outside the vessel
+    // have first > last.
+    int rowFirst(int row) const { return _rowFirst[row]; }
+    int rowLast(int row) const { return _rowLast[row]; }
+
+    bool  grain(int row, int col) const { return _cells[row * kGridWidth + col] != 0; }
+    void  putGrain(int row, int col);
+    void  takeGrain(int row, int col);
+
+    void fillUpperBulb();
+    bool settleOneStep();
+    bool tryFall(int row, int col);
+    bool govern();
+    bool releaseToNeck();
+    bool liftToUpperBulb();
+
+    uint32_t random();
+
+    uint8_t  _cells[kGridWidth * kGridHeight] = {};
+    uint16_t _rowCount[kGridHeight]           = {};
+    uint8_t  _rowFirst[kGridHeight]           = {};
+    uint8_t  _rowLast[kGridHeight]            = {};
+
+    float    _ratePerMs = 0.0f;  // valve: grains per millisecond
+    float    _tokens    = 0.0f;  // valve: grains that may still cross
+    int      _target    = 0;     // grains the timer says belong below the throat
+    int      _below     = 0;     // grains that have run through the neck
+    bool     _settled   = true;
+    uint32_t _rng       = 1;
+};
+
+}  // namespace sand

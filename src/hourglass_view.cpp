@@ -2,46 +2,16 @@
 
 #include "canvas.h"
 #include "palette.h"
+#include "sand.h"
+#include "vessel.h"
 
 namespace {
-
-// Shape of the drawn hourglass, in the coordinates of the frame it is drawn in.
-struct Vessel
-{
-    int16_t centerX;
-    int16_t halfWidth;      // half width at the plates
-    int16_t top;            // y of the top plate
-    int16_t neck;           // y of the neck
-    int16_t bottom;         // y of the bottom plate
-    int16_t neckHalfWidth;
-};
-
-// The big drawing of the portrait scenes: two 80 px bulbs either side of the
-// neck, leaving room for the clock above and the status line below.
-constexpr Vessel kPortraitVessel = {67, 50, 46, 124, 204, 4};
 
 // Rotation of the portrait frame. Standing on one short edge or the other, one
 // of the two portrait rotations shows the picture the right way up.
 // TODO verify on device: if a side shows the picture upside down, swap these.
 constexpr uint8_t kRotationSideA = kRotationPortraitA;
 constexpr uint8_t kRotationSideB = kRotationPortraitB;
-
-int16_t halfWidthAt(const Vessel& vessel, int16_t y)
-{
-    if (y <= vessel.neck) {
-        // Tapering from the top plate towards the neck.
-        const float t = static_cast<float>(y - vessel.top) /
-                        static_cast<float>(vessel.neck - vessel.top);
-        return static_cast<int16_t>(vessel.halfWidth +
-                                    (vessel.neckHalfWidth - vessel.halfWidth) * t);
-    }
-
-    // Widening from the neck towards the bottom plate.
-    const float t = static_cast<float>(y - vessel.neck) /
-                    static_cast<float>(vessel.bottom - vessel.neck);
-    return static_cast<int16_t>(vessel.neckHalfWidth +
-                                (vessel.halfWidth - vessel.neckHalfWidth) * t);
-}
 
 void drawOutline(lgfx::LovyanGFX& g, const Vessel& vessel, uint16_t color)
 {
@@ -61,10 +31,14 @@ void drawOutline(lgfx::LovyanGFX& g, const Vessel& vessel, uint16_t color)
                color);
 }
 
-// Fills the share of a bulb that holds sand. In the upper bulb the sand
-// rests on its bottom, above the orifice: as the bulb drains the surface
-// drops from the top plate towards the neck, so the empty space grows from
-// the top. In the lower bulb the sand piles up from the bottom plate.
+// Fills the share of a bulb that holds sand. In the upper bulb the sand rests
+// on its bottom, above the orifice: as the bulb drains the surface drops from
+// the top plate towards the neck, so the empty space grows from the top. In the
+// lower bulb the sand piles up from the bottom plate.
+//
+// This is the proportional fill of the stage 2 placeholder. The hourglass scenes
+// draw the simulation instead; this one is left for the settings preview, where
+// there is no room for a cellular automaton.
 void fillUpperBulb(lgfx::LovyanGFX& g, const Vessel& vessel, float share, uint16_t color)
 {
     if (share <= 0.0f) {
@@ -107,18 +81,34 @@ void fillLowerBulb(lgfx::LovyanGFX& g, const Vessel& vessel, float share, uint16
 // the device on the opposite side rotates the picture 180 degrees, so the
 // bulb the sand has run into becomes the upper one (see drawRunning).
 void drawHourglass(lgfx::LovyanGFX& g, const Vessel& vessel, float upperShare,
-                   float lowerShare, uint16_t sand, bool flowing)
+                   float lowerShare, uint16_t sand)
 {
     const uint16_t outline = dimmed(sand, 45);
 
     drawOutline(g, vessel, outline);
     fillUpperBulb(g, vessel, upperShare, sand);
     fillLowerBulb(g, vessel, lowerShare, sand);
+}
 
-    if (flowing) {
-        // Placeholder for the falling stream: a short block in the neck. Stage 3
-        // draws the real stream there, out of the cellular automaton.
-        g.fillRect(vessel.centerX - 1, vessel.neck - 2, 2, 6, sand);
+// The sand out of the simulation: one cell per pixel, run-length per row so a
+// row of sand is a single horizontal transfer instead of ninety draws. Drawn
+// before the outline, so the glass stays on top of the pile.
+void drawSand(lgfx::LovyanGFX& g, const sand::Simulation& sim, uint16_t color)
+{
+    for (int row = 0; row < sand::kGridHeight; ++row) {
+        int col = 0;
+        while (col < sand::kGridWidth) {
+            if (!sim.cell(col, row)) {
+                ++col;
+                continue;
+            }
+
+            const int start = col;
+            while (col < sand::kGridWidth && sim.cell(col, row)) {
+                ++col;
+            }
+            g.drawFastHLine(sand::kOriginX + start, sand::kOriginY + row, col - start, color);
+        }
     }
 }
 
@@ -130,6 +120,30 @@ void drawCentered(lgfx::LovyanGFX& g, const char* text, int centerX, int y, uint
     g.setTextDatum(textdatum_t::top_center);
     g.drawString(text, centerX, y);
     g.setTextDatum(textdatum_t::top_left);
+}
+
+// A finished hourglass: the whole load has run down, so the picture is the same
+// whether the interval ran out (DONE) or the sand ran all the way back (FINISH).
+// Only the words differ.
+void drawFinished(const sand::Simulation& sim, uint16_t sand, Orientation side, const char* title,
+                  const char* hint)
+{
+    lgfx::LovyanGFX& g =
+        canvas::beginFrame(Frame::Portrait, hourglass_view::rotationForSide(side));
+
+    g.fillScreen(theme::kBackground);
+    g.setTextWrap(false);
+    g.setTextDatum(textdatum_t::top_left);
+
+    drawCentered(g, title, kPortraitWidth / 2, 6, 3, sand);
+
+    drawSand(g, sim, sand);
+    drawOutline(g, kPortraitVessel, dimmed(sand, 45));
+
+    drawCentered(g, hint, kPortraitWidth / 2, 212, 1, theme::kText);
+    drawCentered(g, "Enter: new  Del: menu", kPortraitWidth / 2, 223, 1, theme::kTextDim);
+
+    canvas::endFrame();
 }
 
 }  // namespace
@@ -149,7 +163,7 @@ void hourglass_view::drawPreview(lgfx::LovyanGFX& g, int centerX, int centerY, i
                            static_cast<int16_t>(centerY + halfHeight),
                            static_cast<int16_t>(halfWidth / 8 + 1)};
 
-    drawHourglass(g, vessel, 1.0f - progress, progress, color, false);
+    drawHourglass(g, vessel, 1.0f - progress, progress, color);
 }
 
 void hourglass_view::drawArmed(const app::Session& session, uint16_t sand)
@@ -171,7 +185,8 @@ void hourglass_view::drawArmed(const app::Session& session, uint16_t sand)
     canvas::endFrame();
 }
 
-void hourglass_view::drawRunning(const app::Session& session, uint16_t sand, bool paused)
+void hourglass_view::drawRunning(const app::Session& session, const sand::Simulation& sim,
+                                 uint16_t sand, bool paused)
 {
     lgfx::LovyanGFX& g =
         canvas::beginFrame(Frame::Portrait, rotationForSide(session.shownSide));
@@ -188,13 +203,12 @@ void hourglass_view::drawRunning(const app::Session& session, uint16_t sand, boo
     app::formatInterval(session.intervalIdx, interval, sizeof(interval));
     drawCentered(g, interval, kPortraitWidth / 2, 34, 1, theme::kTextDim);
 
-    // Standing on the opposite side flips the picture 180 degrees: the bulb
-    // the sand has run into (the forward bulb) is then the physically upper
-    // one, so the two shares swap. The sand itself never jumps: only the
-    // frame rotates around it.
-    const bool flipped = session.shownSide != session.forward;
-    const float upperShare = flipped ? session.progress : 1.0f - session.progress;
-    drawHourglass(g, kPortraitVessel, upperShare, 1.0f - upperShare, sand, session.flow != 0);
+    // The grains are drawn where the simulation has them, in the frame of the
+    // side the device stands on. Turning the device over rotates the grid
+    // inside the simulation, so the picture never jumps and the sand always
+    // runs downwards in the frame that is drawn.
+    drawSand(g, sim, sand);
+    drawOutline(g, kPortraitVessel, dimmed(sand, 45));
 
     if (paused) {
         drawCentered(g, "Paused", kPortraitWidth / 2, 218, 2, theme::kAccent);
@@ -203,20 +217,14 @@ void hourglass_view::drawRunning(const app::Session& session, uint16_t sand, boo
     canvas::endFrame();
 }
 
-void hourglass_view::drawDone(const app::Session& session, uint16_t sand)
+void hourglass_view::drawDone(const app::Session& session, const sand::Simulation& sim,
+                              uint16_t sand)
 {
-    lgfx::LovyanGFX& g =
-        canvas::beginFrame(Frame::Portrait, rotationForSide(session.doneSide));
+    drawFinished(sim, sand, session.doneSide, "Done", "Flip to restart");
+}
 
-    g.fillScreen(theme::kBackground);
-    g.setTextWrap(false);
-    g.setTextDatum(textdatum_t::top_left);
-
-    drawCentered(g, "Done", kPortraitWidth / 2, 6, 3, sand);
-    drawHourglass(g, kPortraitVessel, 0.0f, 1.0f, sand, false);
-
-    drawCentered(g, "Flip to restart", kPortraitWidth / 2, 212, 1, theme::kText);
-    drawCentered(g, "Enter: new  Del: menu", kPortraitWidth / 2, 223, 1, theme::kTextDim);
-
-    canvas::endFrame();
+void hourglass_view::drawFinish(const app::Session& session, const sand::Simulation& sim,
+                                uint16_t sand)
+{
+    drawFinished(sim, sand, session.doneSide, "Finish", "Flip to start");
 }
