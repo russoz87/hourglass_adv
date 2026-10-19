@@ -13,6 +13,8 @@ constexpr int kMenuRowTop    = 24;
 constexpr int kMenuRowHeight = 11;
 constexpr int kMenuTextLeft  = 18;
 constexpr int kHintTop       = 122;
+// The boot status line sits between the last menu row and the hint line.
+constexpr int kStatusTop     = 112;
 
 // Settings geometry.
 constexpr int kSwatchLeft     = 8;
@@ -77,7 +79,7 @@ ui_menu::SettingsCursor ui_menu::moveCursor(SettingsCursor cursor, int dx, int d
     return cursor;
 }
 
-void ui_menu::drawMenu(uint8_t cursor, const settings::Store& store)
+void ui_menu::drawMenu(uint8_t cursor, const settings::Store& store, const char* bootStatus)
 {
     lgfx::LovyanGFX& g = canvas::beginFrame(Frame::Landscape, kRotationLandscape);
 
@@ -110,6 +112,12 @@ void ui_menu::drawMenu(uint8_t cursor, const settings::Store& store)
         if (isSelected) {
             g.fillRect(11, y + 2, 3, 3, theme::kAccent);
         }
+    }
+
+    if (bootStatus != nullptr && bootStatus[0] != '\0') {
+        // Why the device started this time: a reset ends up here, and this line
+        // is the only trace of it that survives to the screen.
+        drawText(g, bootStatus, 6, kStatusTop, 1, theme::kText);
     }
 
     drawText(g, "1-7 interval  Enter  S settings", 6, kHintTop, 1, theme::kTextDim);

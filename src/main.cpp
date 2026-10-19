@@ -39,6 +39,7 @@
 
 #include <M5Cardputer.h>
 #include <cmath>
+#include <cstdio>
 #include <esp_system.h>
 
 #include "app_state.h"
@@ -59,11 +60,12 @@ constexpr uint32_t kLoopDelayMs     = 5;
 constexpr uint32_t kRunningRenderMs = 50;   // 20 frames per second while running
 constexpr uint8_t  kBrightness      = 128;  // the app is watched for minutes
 
-// Master volume. The chime is the only sound the app makes and its level is
-// picked against this one (see the chime constants below); 200 of 255 is where
-// the stage 2 build stood (it ran at 128) and leaves the chime a good way below
-// the codec's rail instead of asking the amplifier for everything it has.
-constexpr uint8_t  kSpeakerVolume   = 200;
+// Master volume. The chime is the only sound the app makes; 128 is the level
+// the stage 2 beep played at on this device without a reset, and while the
+// cause of the reset at DONE is still being pinned down the build keeps that
+// proven value (the screen also shows the reset reason - see the menu status
+// line and resetReasonName).
+constexpr uint8_t  kSpeakerVolume   = 128;
 
 // The sand advances at the frame rate, not every pass of the loop: the automaton
 // is a whole-grid sweep and has nothing to show between two frames.
@@ -126,6 +128,11 @@ uint8_t                 gMenuCursor = 0;
 ui_menu::SettingsCursor gSettingsCursor;
 
 Orientation gLastOrientation = Orientation::Unstable;
+
+// Shown at the bottom of the menu: why the device started this time. After a
+// reset that is the first thing the screen says - the reason itself is gone by
+// the time the app runs.
+char gBootStatus[40] = "";
 
 // Static screens are redrawn when they change, the running countdown on a fixed
 // interval: an idle screen must not cost anything.
@@ -220,10 +227,12 @@ void playDoneChime()
         return;
     }
     // Non-blocking: the request is queued and the audio task plays it. 8 bit
-    // unsigned, mono, once, on any free channel, replacing whatever plays now.
+    // unsigned, mono, once, on any free channel. Nothing else can be sounding
+    // when this is called, so stop_current_sound stays off: the stop path is
+    // one more thing the reset at DONE could come from, and it buys nothing.
     const bool queued = M5.Speaker.playRaw(gChime, kChimeSamples, kChimeRate,
                                            /*stereo=*/false, /*repeat=*/1,
-                                           /*channel=*/-1, /*stop_current_sound=*/true);
+                                           /*channel=*/-1, /*stop_current_sound=*/false);
 
     // One line that answers the open questions of a device session: was the
     // request taken, and is the audio path alive with the chime on the wire? If
@@ -234,6 +243,18 @@ void playDoneChime()
           static_cast<unsigned>(M5.Speaker.isPlaying()),
           M5.Speaker.isRunning() ? "running" : "stopped",
           static_cast<unsigned long>(ESP.getFreeHeap()));
+}
+
+// Turns the switch around. Switching sound on plays the chime at once: that is
+// what the switch enables, and it also makes the audio path checkable on the
+// device without waiting out a whole interval.
+void toggleSound()
+{
+    gSettings.setSound(!gSettings.soundOn);
+    gDirty = true;
+    if (gSettings.soundOn) {
+        playDoneChime();
+    }
 }
 
 void applyInterval(uint8_t idx)
@@ -320,7 +341,7 @@ void handleKey(const KeyPress& key)
 
             if (key.left || key.right) {
                 if (onSoundRow) {
-                    gSettings.setSound(!gSettings.soundOn);
+                    toggleSound();
                 } else {
                     const int dx    = (key.right ? 1 : 0) - (key.left ? 1 : 0);
                     gSettingsCursor = ui_menu::moveCursor(gSettingsCursor, dx, 0);
@@ -330,8 +351,7 @@ void handleKey(const KeyPress& key)
             }
 
             if ((key.enter || key.ok || key.ch == ' ') && onSoundRow) {
-                gSettings.setSound(!gSettings.soundOn);
-                gDirty = true;
+                toggleSound();
             }
 
             if (key.back) {
@@ -397,7 +417,7 @@ void render()
     const uint16_t color = paletteColor(gSettings.colorIdx);
 
     switch (gSession.state) {
-        case AppState::Menu:     ui_menu::drawMenu(gMenuCursor, gSettings); break;
+        case AppState::Menu:     ui_menu::drawMenu(gMenuCursor, gSettings, gBootStatus); break;
         case AppState::Settings: ui_menu::drawSettings(gSettingsCursor, gSettings); break;
         case AppState::Armed:    hourglass_view::drawArmed(gSession, color); break;
         case AppState::Running:  hourglass_view::drawRunning(gSession, gSim, color, false); break;
@@ -437,8 +457,10 @@ void setup()
     gLastOrientation = gOrientation.update(millis());
 
     Serial.printf("\nHourglass stage 3\n");
-    hgLog("reset    : %s (%d)", resetReasonName(esp_reset_reason()),
-          static_cast<int>(esp_reset_reason()));
+    const esp_reset_reason_t bootReason = esp_reset_reason();
+    hgLog("reset    : %s (%d)", resetReasonName(bootReason), static_cast<int>(bootReason));
+    snprintf(gBootStatus, sizeof(gBootStatus), "last boot: %s (%d)", resetReasonName(bootReason),
+             static_cast<int>(bootReason));
     Serial.printf("board    : %s\n", boardName(M5.getBoard()));
     Serial.printf("display  : %dx%d landscape, %dx%d portrait\n", kLandscapeWidth,
                   kLandscapeHeight, kPortraitWidth, kPortraitHeight);

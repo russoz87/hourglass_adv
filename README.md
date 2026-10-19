@@ -232,6 +232,11 @@ After installing the build:
    flipping to the other edge starts a new cycle. Enter restarts from DONE and
    FINISH too.
 8. `Del` from RUNNING returns to the menu.
+9. The menu carries a `last boot:` line with the reset reason (`power-on`,
+   `brownout`, `panic`, `task watchdog`). After any unexpected restart, that
+   line is the first thing to read; the same reason is logged in serial.
+10. In the settings, switching Sound from Off to On plays the chime at once -
+   a two-second way to check the audio path without waiting out an interval.
 
 ## Next stages
 
