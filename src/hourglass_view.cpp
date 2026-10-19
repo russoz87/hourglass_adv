@@ -186,7 +186,7 @@ void hourglass_view::drawArmed(const app::Session& session, uint16_t sand)
 }
 
 void hourglass_view::drawRunning(const app::Session& session, const sand::Simulation& sim,
-                                 uint16_t sand, bool paused)
+                                 uint16_t sand, bool paused, bool showClock)
 {
     lgfx::LovyanGFX& g =
         canvas::beginFrame(Frame::Portrait, rotationForSide(session.shownSide));
@@ -195,13 +195,19 @@ void hourglass_view::drawRunning(const app::Session& session, const sand::Simula
     g.setTextWrap(false);
     g.setTextDatum(textdatum_t::top_left);
 
-    char clock[8];
-    app::formatClock(app::remainingSeconds(session), clock, sizeof(clock));
-    drawCentered(g, clock, kPortraitWidth / 2, 6, 3, theme::kText);
-
     char interval[12];
     app::formatInterval(session.intervalIdx, interval, sizeof(interval));
-    drawCentered(g, interval, kPortraitWidth / 2, 34, 1, theme::kTextDim);
+
+    if (showClock) {
+        char clock[8];
+        app::formatClock(app::remainingSeconds(session), clock, sizeof(clock));
+        drawCentered(g, clock, kPortraitWidth / 2, 6, 3, theme::kText);
+        drawCentered(g, interval, kPortraitWidth / 2, 34, 1, theme::kTextDim);
+    } else {
+        // The clock is hidden by setting: the interval alone takes its place,
+        // small and dim, so the top of the screen keeps its structure.
+        drawCentered(g, interval, kPortraitWidth / 2, 10, 1, theme::kTextDim);
+    }
 
     // The grains are drawn where the simulation has them, in the frame of the
     // side the device stands on. Turning the device over rotates the grid

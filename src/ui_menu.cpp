@@ -23,8 +23,10 @@ constexpr int kSwatchStepX    = 36;
 constexpr int kSwatchStepY    = 30;
 constexpr int kColorNameTop   = 86;
 constexpr int kSoundRowTop    = 98;
-constexpr int kSoundRowHeight = 14;
-constexpr int kSoundRowWidth  = 116;
+constexpr int kClockRowTop    = 112;
+constexpr int kRowHeight      = 14;
+constexpr int kRowWidth       = 116;
+constexpr int kSettingsHintTop = 124;  // one row lower than the menu hint
 
 // Preview of the chosen colour, on the right of the settings grid.
 constexpr int kPreviewCenterX    = 195;
@@ -39,6 +41,17 @@ void drawText(lgfx::LovyanGFX& g, const char* text, int x, int y, uint8_t size, 
     g.setTextColor(color);
     g.setCursor(x, y);
     g.print(text);
+}
+
+// One settings switch row: the label, the state in the accent colour, and the
+// cursor highlight when the pointer stands on it.
+void drawSwitchRow(lgfx::LovyanGFX& g, const char* label, bool on, bool cursorRow, int top)
+{
+    if (cursorRow) {
+        g.fillRect(4, top - 3, kRowWidth, kRowHeight, theme::kCursorFill);
+    }
+    drawText(g, label, 10, top, 1, cursorRow ? theme::kText : theme::kTextDim);
+    drawText(g, on ? "On" : "Off", 52, top, 1, on ? theme::kAccent : theme::kTextDim);
 }
 
 void beginScene(lgfx::LovyanGFX& g, const char* title)
@@ -64,13 +77,13 @@ ui_menu::SettingsCursor ui_menu::moveCursor(SettingsCursor cursor, int dx, int d
 {
     if (dy < 0 && cursor.row > 0) {
         cursor.row = static_cast<uint8_t>(cursor.row - 1);
-    } else if (dy > 0 && cursor.row < kSoundRow) {
+    } else if (dy > 0 && cursor.row < kClockRow) {
         cursor.row = static_cast<uint8_t>(cursor.row + 1);
     }
 
-    if (dx < 0 && !cursor.onSound() && cursor.col > 0) {
+    if (dx < 0 && cursor.onPalette() && cursor.col > 0) {
         cursor.col = static_cast<uint8_t>(cursor.col - 1);
-    } else if (dx > 0 && !cursor.onSound() && cursor.col + 1 < kPaletteColumns) {
+    } else if (dx > 0 && cursor.onPalette() && cursor.col + 1 < kPaletteColumns) {
         cursor.col = static_cast<uint8_t>(cursor.col + 1);
     }
 
@@ -133,7 +146,7 @@ void ui_menu::drawSettings(const SettingsCursor& cursor, const settings::Store& 
             // The colour the hourglass uses: light frame just inside the swatch.
             g.drawRect(x + 1, y + 1, kSwatchWidth - 2, kSwatchHeight - 2, theme::kText);
         }
-        if (!cursor.onSound() && cursor.paletteIdx() == idx) {
+        if (!cursor.onPalette() && cursor.paletteIdx() == idx) {
             // Where the cursor is: accent frame around the swatch.
             g.drawRect(x - 2, y - 2, kSwatchWidth + 4, kSwatchHeight + 4, theme::kAccent);
         }
@@ -141,19 +154,14 @@ void ui_menu::drawSettings(const SettingsCursor& cursor, const settings::Store& 
 
     drawText(g, paletteName(store.colorIdx), 10, kColorNameTop, 1, theme::kTextDim);
 
-    const bool soundCursor = cursor.onSound();
-    if (soundCursor) {
-        g.fillRect(4, kSoundRowTop - 3, kSoundRowWidth, kSoundRowHeight, theme::kCursorFill);
-    }
-    drawText(g, "Sound", 10, kSoundRowTop, 1, soundCursor ? theme::kText : theme::kTextDim);
-    drawText(g, store.soundOn ? "On" : "Off", 52, kSoundRowTop, 1,
-             store.soundOn ? theme::kAccent : theme::kTextDim);
+    drawSwitchRow(g, "Sound", store.soundOn, cursor.onSound(), kSoundRowTop);
+    drawSwitchRow(g, "Clock", store.clockOn, cursor.onClock(), kClockRowTop);
 
     hourglass_view::drawPreview(g, kPreviewCenterX, kPreviewCenterY, kPreviewHalfWidth,
                                 kPreviewHalfHeight, kPreviewProgress,
                                 paletteColor(store.colorIdx));
 
-    drawText(g, "Arrows move  Enter toggle  Del back", 6, kHintTop, 1, theme::kTextDim);
+    drawText(g, "Arrows move  Enter toggle  Del back", 6, kSettingsHintTop, 1, theme::kTextDim);
 
     canvas::endFrame();
 }

@@ -28,11 +28,11 @@ namespace hourglass_view {
 // Landscape: the selected interval and "place on side to start".
 void drawArmed(const app::Session& session, uint16_t sand);
 
-// Portrait: hourglass, mm:ss and, when paused, the paused label. The sand comes
-// from the simulation, which already holds the layout of the frame that is
-// being drawn.
+// Portrait: hourglass, mm:ss (unless hidden by setting) and, when paused, the
+// paused label. The sand comes from the simulation, which already holds the
+// layout of the frame that is being drawn.
 void drawRunning(const app::Session& session, const sand::Simulation& sim, uint16_t sand,
-                 bool paused);
+                 bool paused, bool showClock);
 
 // Portrait: the finished hourglass (lower bulb full) and the restart hint.
 // DONE after the interval ran out, FINISH after the sand ran all the way back.

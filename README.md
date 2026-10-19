@@ -20,7 +20,7 @@ the picture never jumps. Only the settings preview keeps the proportional fill.
 | `src/main.cpp` | wiring: samples keyboard and IMU, feeds the state machine and the simulation, decides when to redraw, plays the chime |
 | `src/app_state.*` | `AppState`, the transitions, sand progress integrated from millisecond deltas |
 | `src/orientation.*` | accelerometer -> side / flat / unstable, filtered and debounced |
-| `src/settings.*` | NVS namespace `hourglass`: `interval_idx`, `color_idx`, `sound_on` |
+| `src/settings.*` | NVS namespace `hourglass`: `interval_idx`, `color_idx`, `sound_on`, `clock_on` |
 | `src/ui_menu.*` | menu and settings screens (landscape) |
 | `src/hourglass_view.*` | ARMED / RUNNING / PAUSED / DONE / FINISH (portrait rotated frame) |
 | `src/sand.*` | falling-sand simulation: platform independent, host-tested |
@@ -44,10 +44,12 @@ select an interval directly, arrows move, `Enter` starts from an interval row or
 opens the settings, `s` opens the settings.
 
 **SETTINGS** - a grid of eight colour swatches (the active one framed, the cursor
-in accent), a preview hourglass in the chosen colour and a `Sound` switch.
-Arrows move; moving onto a swatch selects it; `Enter`, or left/right on the sound
-row, toggles the sound. Each change is written to NVS immediately. `Del` goes
-back to the menu.
+in accent), a preview hourglass in the chosen colour and a two `Sound`/`Clock`
+switches. Arrows move; moving onto a swatch selects it; `Enter`, or left/right
+on a switch row, toggles it. `Sound` turns the completion chime on or off,
+`Clock` shows or hides the `mm:ss` readout during the countdown (hidden, the
+interval label stands in its place). Each change is written to NVS immediately.
+`Del` goes back to the menu.
 
 **ARMED** (landscape) - the selected interval, `Place on side to start`, and the
 debug hint.
@@ -106,8 +108,8 @@ keyboard : TCA8418 (ADV)
 [hg     120] imu      : enabled
 [hg     121] sprites  : landscape + portrait
 [hg     123] heap     : 236195 bytes free
-[hg     125] settings : interval 10 min, color 0 (Classic), sound on
-[hg     130] nvs: interval_idx=3 color_idx=0 sound_on=1
+[hg     125] settings : interval 10 min, color 0 (Classic), sound on, clock on
+[hg     130] nvs: interval_idx=3 color_idx=0 sound_on=1 clock_on=1
 [hg     142] state: Menu -> Armed (start pressed)
 [hg     331] orientation: Unstable -> FlatUp (accel -0.01 +0.00 +1.00)
 [hg     512] key: Enter (fn 0 shift 0 ctrl 0 opt 0 alt 0)
@@ -155,8 +157,8 @@ Current image (stage 3):
 
 ```
 RAM:   [=         ]  12.2% (used  39908 bytes from 327680 bytes)
-Flash: [====      ]  36.9% (used 508501 bytes from 1376256 bytes)
-firmware.bin: 508864 bytes
+Flash: [====      ]  37.0% (used 508921 bytes from 1376256 bytes)
+firmware.bin: 509280 bytes
 ```
 
 ## Installing on the device
@@ -205,9 +207,9 @@ platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 scripts/guard_usb_flash.py  blocks upload/erase targets
 src/                        application modules, see the table above
-tests/                      host tests for the sand simulation (g++, no
-                            Arduino): g++ -std=c++17 -O2 -I src
-                            tests/sand_test.cpp src/sand.cpp
+tests/                      host tests, plain C++ (g++, no Arduino):
+                            g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp
+                            g++ -std=c++17 -O2 -I src tests/app_state_test.cpp src/app_state.cpp
 ```
 
 ## Troubleshooting
@@ -254,6 +256,9 @@ After installing the build:
    restart, that line is the first thing to read.
 10. In the settings, switching Sound from Off to On plays the signal at once -
    a two-second way to check the audio path without waiting out an interval.
+11. In the settings, switching Clock to Off hides the mm:ss on the countdown
+    screens (the interval label takes its place); switching it back On restores
+    the readout. The choice survives a power cycle (`nvs:` line).
 
 ## Next stages
 
@@ -263,8 +268,6 @@ After installing the build:
   flat, the grains inside each bulb settle towards the physically lower wall of
   their own bulb, like a real hourglass lying on its side; nothing crosses the
   neck, the timer stays paused.
-- **Improvements (user backlog):** a setting that shows or hides the mm:ss
-  readout during the countdown, default on.
 - **Open: a softer completion signal.** The shipped signal is the two-tone
   `Speaker::tone()` call (A5, then a longer D6), confirmed playing on the
   device. What made it possible at all is the toolchain pin: on

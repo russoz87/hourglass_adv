@@ -56,10 +56,15 @@ pio device monitor --baud 115200   # USB CDC is enabled on boot
 Artifact: `.pio/build/cardputer-adv/firmware.bin` - install it into the
 device from the Launcher SD menu; never flash it over USB.
 
-Host tests (the sand simulation is plain C++, no Arduino):
+Host tests (the sand simulation and the state machine are plain C++; the
+state-machine test stubs the pose API and the device log - see its file
+header):
 
 ```sh
-g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp -o sand_test && ./sand_test
+g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp \
+    -o sand_test && ./sand_test
+g++ -std=c++17 -O2 -I src tests/app_state_test.cpp src/app_state.cpp \
+    -o app_state_test && ./app_state_test
 ```
 
 ## Architecture in one breath

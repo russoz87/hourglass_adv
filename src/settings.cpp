@@ -37,16 +37,18 @@ void settings::Store::load()
     const uint8_t interval = gPrefs.getUChar(kKeyIntervalIdx, kDefaultIntervalIdx);
     const uint8_t color    = gPrefs.getUChar(kKeyColorIdx, kDefaultColorIdx);
     const bool    sound    = gPrefs.getBool(kKeySoundOn, kDefaultSoundOn);
+    const bool    clock    = gPrefs.getBool(kKeyClockOn, kDefaultClockOn);
 
     // A value written by an older build (or by hand) must not index past the
     // interval or palette tables.
     intervalIdx = interval < kIntervalCount ? interval : kDefaultIntervalIdx;
     colorIdx    = color < kPaletteCount ? color : kDefaultColorIdx;
     soundOn     = sound;
+    clockOn     = clock;
 
-    hgLog("nvs: interval_idx=%u color_idx=%u sound_on=%u",
+    hgLog("nvs: interval_idx=%u color_idx=%u sound_on=%u clock_on=%u",
           static_cast<unsigned>(intervalIdx), static_cast<unsigned>(colorIdx),
-          static_cast<unsigned>(soundOn));
+          static_cast<unsigned>(soundOn), static_cast<unsigned>(clockOn));
 }
 
 void settings::Store::setInterval(uint8_t idx)
@@ -93,4 +95,17 @@ void settings::Store::setSound(bool on)
         hgLog("nvs: write sound_on failed");
     }
     hgLog("settings: sound=%s", on ? "on" : "off");
+}
+
+void settings::Store::setClock(bool on)
+{
+    if (on == clockOn) {
+        return;
+    }
+
+    clockOn = on;
+    if (openPrefs() && gPrefs.putBool(kKeyClockOn, on) == 0) {
+        hgLog("nvs: write clock_on failed");
+    }
+    hgLog("settings: clock=%s", on ? "on" : "off");
 }

@@ -191,6 +191,14 @@ void toggleSound()
     }
 }
 
+// Shows or hides the mm:ss readout during the countdown. No preview needed: the
+// next countdown screen is the feedback.
+void toggleClock()
+{
+    gSettings.setClock(!gSettings.clockOn);
+    gDirty = true;
+}
+
 void applyInterval(uint8_t idx)
 {
     gSettings.setInterval(idx);
@@ -261,11 +269,12 @@ void handleKey(const KeyPress& key)
 
         case AppState::Settings: {
             const bool onSoundRow = gSettingsCursor.onSound();
+            const bool onClockRow = gSettingsCursor.onClock();
 
             if (key.up || key.down) {
                 const int dy    = (key.down ? 1 : 0) - (key.up ? 1 : 0);
                 gSettingsCursor = ui_menu::moveCursor(gSettingsCursor, 0, dy);
-                if (!gSettingsCursor.onSound()) {
+                if (gSettingsCursor.onPalette()) {
                     // Moving onto a swatch selects it: the preview is the
                     // confirmation and the choice goes to NVS right away.
                     gSettings.setColor(gSettingsCursor.paletteIdx());
@@ -276,6 +285,8 @@ void handleKey(const KeyPress& key)
             if (key.left || key.right) {
                 if (onSoundRow) {
                     toggleSound();
+                } else if (onClockRow) {
+                    toggleClock();
                 } else {
                     const int dx    = (key.right ? 1 : 0) - (key.left ? 1 : 0);
                     gSettingsCursor = ui_menu::moveCursor(gSettingsCursor, dx, 0);
@@ -284,8 +295,12 @@ void handleKey(const KeyPress& key)
                 gDirty = true;
             }
 
-            if ((key.enter || key.ok || key.ch == ' ') && onSoundRow) {
-                toggleSound();
+            if ((key.enter || key.ok || key.ch == ' ') && (onSoundRow || onClockRow)) {
+                if (onSoundRow) {
+                    toggleSound();
+                } else {
+                    toggleClock();
+                }
             }
 
             if (key.back) {
@@ -354,8 +369,10 @@ void render()
         case AppState::Menu:     ui_menu::drawMenu(gMenuCursor, gSettings); break;
         case AppState::Settings: ui_menu::drawSettings(gSettingsCursor, gSettings); break;
         case AppState::Armed:    hourglass_view::drawArmed(gSession, color); break;
-        case AppState::Running:  hourglass_view::drawRunning(gSession, gSim, color, false); break;
-        case AppState::Paused:   hourglass_view::drawRunning(gSession, gSim, color, true); break;
+        case AppState::Running:  hourglass_view::drawRunning(gSession, gSim, color, false,
+                                                             gSettings.clockOn); break;
+        case AppState::Paused:   hourglass_view::drawRunning(gSession, gSim, color, true,
+                                                             gSettings.clockOn); break;
         case AppState::Done:     hourglass_view::drawDone(gSession, gSim, color); break;
         case AppState::Finish:   hourglass_view::drawFinish(gSession, gSim, color); break;
     }
@@ -417,10 +434,10 @@ void setup()
     hgLog("sand     : %d grains on a %dx%d grid, %d bytes in .bss", sand::kGrains,
           sand::kGridWidth, sand::kGridHeight, static_cast<int>(sizeof(sand::Simulation)));
     hgLog("heap     : %lu bytes free", static_cast<unsigned long>(ESP.getFreeHeap()));
-    hgLog("settings : interval %u min, color %u (%s), sound %s",
+    hgLog("settings : interval %u min, color %u (%s), sound %s, clock %s",
           static_cast<unsigned>(kIntervalMinutes[gSettings.intervalIdx]),
           static_cast<unsigned>(gSettings.colorIdx), paletteName(gSettings.colorIdx),
-          gSettings.soundOn ? "on" : "off");
+          gSettings.soundOn ? "on" : "off", gSettings.clockOn ? "on" : "off");
 
     gLastTickMs   = millis();
     gLastRenderMs = gLastTickMs;
