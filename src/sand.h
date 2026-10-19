@@ -27,6 +27,13 @@
  *              alone cannot: it releases grains from the face of the upper pile
  *              into the neck when the sand is behind. In the other direction it
  *              is a debug path only (see govern()).
+ *   flat     - while the device lies flat the picture keeps its upright frame
+ *              and the gravity a real lying hourglass sees runs ACROSS that
+ *              picture: `step()` is called with Gravity::Left or ::Right and
+ *              the grains slide toward the lower wall of their own bulb, with
+ *              the spill diagonals of a lying pile. The valve and the governor
+ *              stand still, and a lateral step never changes the row, so
+ *              nothing can cross the neck sideways.
  *
  * A flip is not a rebuild of the scene: the grid is rotated 180 degrees, so the
  * sand keeps its place in the hand while the frame turns with the device. The
@@ -40,6 +47,18 @@
 #include "vessel.h"
 
 namespace sand {
+
+// The gravity direction of one step, in the frame that is drawn. `Down` is the
+// standing hourglass. `Left`/`Right` are the flat poses: which of the two side
+// walls is physically lower cannot be read out of a flat pose (the gravity then
+// points straight into the screen), so the convention is flat - screen up
+// settles to the left wall, screen down to the right one.
+enum class Gravity : uint8_t
+{
+    Down,
+    Left,
+    Right,
+};
 
 // One grain per pixel. kCellPx = 2 would halve the grid in each direction and
 // cost a quarter of the work, at the price of visibly blocky sand.
@@ -87,7 +106,9 @@ public:
     // Advances the sand by `dtMs`. `lowerShare` is the share of the drawn lower
     // bulb that should hold sand (app::frameLowerShare), `flowing` is false
     // while the timer holds still, and then nothing crosses the neck.
-    void step(uint32_t dtMs, float lowerShare, bool flowing);
+    // `gravity` is the direction the grains move in this step: `Down` runs the
+    // standing hourglass (valve, governor), `Left`/`Right` the flat settle.
+    void step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity = Gravity::Down);
 
     // True when the last step moved nothing: the pile is at rest and the caller
     // can stop animating the picture.
@@ -109,6 +130,7 @@ public:
     }
 
 private:
+private:
     // Valid columns of a row: [first, last], inclusive. Rows outside the vessel
     // have first > last.
     int rowFirst(int row) const { return _rowFirst[row]; }
@@ -120,7 +142,9 @@ private:
 
     void fillUpperBulb();
     bool settleOneStep();
+    bool settleLateralStep(int dir);
     bool tryFall(int row, int col);
+    bool tryFallLateral(int row, int col, int dir);
     bool govern();
     bool releaseToNeck();
     bool liftToUpperBulb();

@@ -210,8 +210,8 @@ void OrientationTracker::logRawTrace(uint32_t nowMs)
 {
     // Bring-up aid: raw values in a fixed cadence, so the axis convention above
     // can be checked by moving the device through the four poses and reading the
-    // log. Low value once the axes are known - drop it in stage 3 if it gets in
-    // the way.
+    // log. The screen-down pose is the one still unconfirmed - once it is, this
+    // trace is the README's "Later" cleanup.
     if (nowMs - _lastRawTraceMs < kRawTraceMs) {
         return;
     }

@@ -452,6 +452,96 @@ void testPileShape()
     check(std::fabs(mean - center) < 1.5, "the pile has no sideways drift", detail);
 }
 
+// Mean column of the grains in [rowFrom, rowTo) - the pile's sideways position.
+double meanCol(const sand::Simulation& sim, int rowFrom, int rowTo, int* countOut = nullptr)
+{
+    double sum   = 0.0;
+    int    count = 0;
+    for (int r = rowFrom; r < rowTo && r < sand::kGridHeight; ++r) {
+        for (int c = 0; c < sand::kGridWidth; ++c) {
+            if (sim.cell(c, r)) {
+                sum += c;
+                ++count;
+            }
+        }
+    }
+    if (countOut != nullptr) {
+        *countOut = count;
+    }
+    return count > 0 ? sum / count : 0.0;
+}
+
+void testFlatSettle()
+{
+    std::printf("\n-- flat pose: settle toward the lower wall --\n");
+
+    sand::Simulation sim;
+    sim.reset(60000);  // 1 min
+
+    // Run the cycle for a while: both bulbs hold grains and a stream sits in
+    // the upper bulb, as at a real pause.
+    Clock clock;
+    for (int i = 0; i < 400; ++i) {  // 20 s of the 1 min interval
+        sim.step(kFrameMs, clock.lowerShare(), clock.flowing());
+        clock.advance(kFrameMs);
+    }
+    const int belowBefore = sim.grainsBelow();
+    check(belowBefore > 500, "the cycle has delivered a share of the load", "(grains below)");
+
+    double upperBefore = meanCol(sim, 0, sand::kNeckRow);
+    double lowerBefore = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
+
+    // Lay it flat, screen up: the sand slides across the picture, toward the
+    // left wall of its own bulb; the clock stands still, nothing crosses.
+    int  frames  = 0;
+    bool crossed = false;
+    do {  // do-while: one step even when the pile already looks at rest
+        sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Left);
+        if (sim.grainsBelow() != belowBefore) {
+            crossed = true;
+        }
+        ++frames;
+    } while (!sim.settled() && frames < 2000);
+    check(!crossed, "no grain crosses the neck while flat");
+    check(allInsideMask(sim), "the flat settle keeps every grain in the glass");
+    check(countGrains(sim) == sand::kGrains, "the flat settle conserved the grains");
+    check(sim.settled(), "the flat sand comes to rest");
+
+    const double upperAfter = meanCol(sim, 0, sand::kNeckRow);
+    const double lowerAfter = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
+    check(upperAfter < upperBefore && lowerAfter < lowerBefore,
+          "the sand slid toward the left wall of each bulb");
+    char detail[96];
+    std::snprintf(detail, sizeof(detail),
+                  "(settled in %d frames, upper %.1f -> %.1f below neck %d)",
+                  frames, upperBefore, upperAfter, sim.grainsBelow());
+    std::printf("      %s\n", detail + 1);
+
+    // Screen down is the mirror: the pile slides to the right wall.
+    frames  = 0;
+    crossed = false;
+    do {
+        sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Right);
+        if (sim.grainsBelow() != belowBefore) {
+            crossed = true;
+        }
+        ++frames;
+    } while (!sim.settled() && frames < 2000);
+    check(!crossed, "the flat pose keeps the neck sealed both ways");
+    const double upperRight = meanCol(sim, 0, sand::kNeckRow);
+    const double lowerRight = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
+    check(upperRight > upperAfter && lowerRight > lowerAfter,
+          "screen down slides the sand to the right wall");
+
+    // Back on its feet: the standing physics resumes and the clock runs again.
+    for (int i = 0; i < 40; ++i) {
+        sim.step(kFrameMs, clock.lowerShare(), clock.flowing(), sand::Gravity::Down);
+        clock.advance(kFrameMs);
+    }
+    check(sim.grainsBelow() > belowBefore, "standing up resumes the countdown");
+    check(countGrains(sim) == sand::kGrains, "resuming conserved the grains");
+}
+
 void benchmark()
 {
     std::printf("\n-- cost of one step --\n");
@@ -492,6 +582,7 @@ int main()
     testRewind();
     testDebugJump();
     testPileShape();
+    testFlatSettle();
     benchmark();
 
     std::printf("\n%s: %d failure(s)\n", gFailures == 0 ? "PASS" : "FAIL", gFailures);

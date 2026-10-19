@@ -8,8 +8,9 @@ to break while looking clever.
 
 Hourglass - a sand-timer app for the **M5Stack Cardputer-ADV** (ESP32-S3,
 8 MB flash, 240x135 display, TCA8418 keyboard, BMI270 IMU, ES8311 codec).
-Stage 3, feature-complete: menu/settings, NVS, timer state machine,
-orientation, falling-sand animation, completion chime. There is no
+Stage 4: the stage-3 app (menu/settings, NVS, timer state machine,
+orientation, falling-sand animation, chime) plus flat-pose physics - a flat
+device settles its sand sideways, nothing crosses the neck. There is no
 Launcher-less firmware mode: the app ships as a **Launcher app**, not as a
 USB-flashed firmware.
 
@@ -99,13 +100,18 @@ Facts that keep code honest:
   `playRaw()` takes the rate explicitly, so the two must agree). The
   completion chime is rendered once at boot (A5, then a longer D6, sines
   with fades, unsigned 8-bit, ~19% amplitude) and plays in one call on
-  `Speaker::playRaw()` channel 0 - nothing is scheduled in the loop anymore.
-  `Speaker::tone()` played the same figure and is the proven fallback:
-  every `playRaw()` failure recorded so far (silent at low level, reset at
-  high) happened under the espressif32@8.0.0 speaker stack. The chime's
-  audition on the device is README checklist items 7 and 10; when it
-  misbehaves, suspect the version pins first. The probe that bisected the
-  original panic is in git history around commit `9da7d92`.
+  `Speaker::playRaw()` channel 0 - confirmed on the device, nothing is
+  scheduled in the loop. Every `playRaw()` failure recorded before that
+  (silent at low level, reset at high) happened under the espressif32@8.0.0
+  speaker stack; when audio misbehaves, suspect the version pins first.
+  `Speaker::tone()` in the git history is the proven fallback, and the probe
+  that bisected the panic is around commit `9da7d92`.
+- Flat poses (`Paused`) run a lateral settle: the automaton's fall turns 90
+  degrees across the picture (`sand::Gravity::Left`/`::Right`), the valve and
+  the governor stand still, and a lateral step never leaves its grid row -
+  that row is what keeps the bulbs separated, so nothing crosses the neck.
+  The screen-up-to-left / screen-down-to-right mapping is a documented
+  convention: a flat pose cannot see which side wall is physically lower.
 
 ## Debugging without the IMU (flat on a desk)
 

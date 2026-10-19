@@ -5,13 +5,16 @@ An hourglass (sand timer) firmware for the **M5Stack Cardputer-ADV**
 ES8311 codec). Putting the device on its side starts the countdown, turning it
 over reverses it, and laying it flat pauses it - like a real hourglass.
 
-## Status: stage 3 - falling sand
+## Status: stage 4 - flat-pose physics
 
-The app runs: menu and settings, NVS, timer state machine, IMU orientation, the
-completion chime, and the falling-sand animation. The sand is a cellular
+The app runs: menu and settings (including the `Sound` and `Clock` switches), NVS,
+timer state machine, IMU orientation, the soft rendered completion chime, and the
+falling-sand animation. The sand is a cellular
 automaton (`src/sand.h`): the neck is a valve that drips the load over exactly
-the interval, and a flip rotates the grid instead of rebuilding the scene, so
-the picture never jumps. Only the settings preview keeps the proportional fill.
+the interval, a flip rotates the grid instead of rebuilding the scene, so
+the picture never jumps, and a flat pose - a paused clock - settles the sand
+sideways toward the lower wall of each bulb. Only the settings preview keeps the
+proportional fill.
 
 ### Modules
 
@@ -23,7 +26,7 @@ the picture never jumps. Only the settings preview keeps the proportional fill.
 | `src/settings.*` | NVS namespace `hourglass`: `interval_idx`, `color_idx`, `sound_on`, `clock_on` |
 | `src/ui_menu.*` | menu and settings screens (landscape) |
 | `src/hourglass_view.*` | ARMED / RUNNING / PAUSED / DONE / FINISH (portrait rotated frame) |
-| `src/sand.*` | falling-sand simulation: platform independent, host-tested |
+| `src/sand.*` | falling-sand simulation: platform independent, host-tested; vertical flow and the lateral flat-settle |
 | `src/vessel.h` | the shape of the glass, shared by the drawing and the grid |
 | `src/canvas.*` | one sprite per frame, each pushed in a single transfer |
 | `src/palette.h` | the eight preset colours and the fixed UI colours |
@@ -71,6 +74,18 @@ fall (sand and clock run backwards), lying flat freezes it. Progress reaching 1
 ends the cycle (DONE, signal); falling back to 0 returns to ARMED. Flipping a
 finished hourglass to the other side starts a new cycle, and so does `Enter`.
 
+While the device lies flat, the frozen sand gets its own physics: the picture
+keeps its frame, the gravity a real lying hourglass sees runs across it, and
+the grains of each bulb slide toward the lower wall of their own bulb - the
+automaton runs its usual straight-then-two-diagonals fall, just 90 degrees
+sideways, with the valve and the governor standing still. Screen up settles
+the pile to the left wall, screen down to the right one; which of the two
+walls is physically lower cannot be read from a flat pose (the gravity there
+points straight into the screen), so the mapping is a documented convention. A
+lateral step never leaves its grid row, and the row is the boundary between
+the bulbs, so nothing crosses the neck while lying. Standing the device back
+on an edge returns to the standing physics and the clock.
+
 ### Orientation
 
 Measured on the device with the stage 1 bring-up screen, accelerometer in g
@@ -102,7 +117,7 @@ reported as `Unstable`, which stops the sand like a flat pose does.
 ### Serial log
 
 ```
-Hourglass stage 3
+Hourglass stage 4
 [hg      3] reset    : power-on (1)
 board    : M5Cardputer-ADV
 display  : 240x135 landscape, 135x240 portrait
@@ -155,12 +170,12 @@ manually, the way the shipped AdvanceOS apps configure it. `M5Cardputer`
 (0.2.22+) reworks the speaker task and panics on this board, which is why the
 pair is pinned at 0.2.20 / 0.2.27 and must only move together.
 
-Current image (stage 3):
+Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87900 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 509173 bytes from 1376256 bytes)
-firmware.bin: 509536 bytes
+Flash: [====      ]  37.0% (used 509669 bytes from 1376256 bytes)
+firmware.bin: 510032 bytes
 ```
 
 ## Installing on the device
@@ -189,7 +204,7 @@ Install steps:
 Launcher writes an installed app into a single slot at `0x10000` of
 `0x150000` bytes (its `custom_8Mb.csv`, mirrored in `partitions.csv`).
 `board_upload.maximum_size` is set to that size, so `pio run` fails instead of
-producing a binary that cannot be installed. Stage 3 uses 508581 of 1376256
+producing a binary that cannot be installed. Stage 4 uses 509669 of 1376256
 bytes, leaving ~850 kB.
 
 ## Serial monitor
@@ -261,22 +276,13 @@ After installing the build:
 11. In the settings, switching Clock to Off hides the mm:ss on the countdown
     screens (the interval label takes its place); switching it back On restores
     the readout. The choice survives a power cycle (`nvs:` line).
+12. While counting down, lay the device flat: `Paused` shows and the sand of
+    both bulbs slides toward one side wall (screen up: left, screen down:
+    right), nothing crosses the neck and `mm:ss` freezes with it. Laying it
+    the other face down slides the pile to the other wall; standing it back on
+    an edge resumes the countdown and the old pile shape falls into place.
 
 ## Next stages
 
 - **Later:** dropping the raw IMU trace once the axis table is confirmed on
   the device; the screen-down pose is the one pose still unconfirmed.
-- **Improvements (user backlog):** flat-pose physics - while the hourglass lies
-  flat, the grains inside each bulb settle towards the physically lower wall of
-  their own bulb, like a real hourglass lying on its side; nothing crosses the
-  neck, the timer stays paused.
-- **Softer chime: audition on the device.** The shipped signal is now the
-  rendered PCM chime (A5, then a longer D6, sines with fades, one buffer
-  through `Speaker::playRaw()`) instead of the two-tone figure
-  `Speaker::tone()` played. That figure is confirmed audible on the device;
-  this chime is its soft twin and is waiting for the same confirmation -
-  checklist items 7 and 10 are the audition. Every `playRaw()` failure ever
-  recorded (silent at low levels, reset at high ones) happened under the
-  espressif32@8.0.0 speaker stack, so a failure here points at the version
-  pins first; `Speaker::tone()` in the git history is the proven fallback,
-  and the probe that bisected the original panic is around `9da7d92`.

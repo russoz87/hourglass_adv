@@ -156,41 +156,54 @@ void sand::Simulation::flip()
     _settled = false;
 }
 
-void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing)
+void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity)
 {
     if (dtMs == 0) {
         return;
     }
 
-    // The timer is the truth: round(lowerShare * kGrains) grains belong below
-    // the throat right now.
-    int target = static_cast<int>(lowerShare * static_cast<float>(kGrains) + 0.5f);
-    if (target < 0) {
-        target = 0;
-    } else if (target > kGrains) {
-        target = kGrains;
+    // A flat pose holds the clock: the share, the valve target and the valve
+    // itself stand still. Only the standing hourglass (Gravity::Down) runs the
+    // valve and lets the governor act.
+    const bool standing = gravity == Gravity::Down;
+
+    if (standing) {
+        // The timer is the truth: round(lowerShare * kGrains) grains belong
+        // below the throat right now.
+        int target = static_cast<int>(lowerShare * static_cast<float>(kGrains) + 0.5f);
+        if (target < 0) {
+            target = 0;
+        } else if (target > kGrains) {
+            target = kGrains;
+        }
+        _target = target;
     }
-    _target = target;
 
     // Per substep, so the grains that cross the neck spread over the frame
     // instead of leaving in one bunch at its start.
-    const float tokensPerSubstep =
-        flowing ? _ratePerMs * static_cast<float>(dtMs) / static_cast<float>(kSubsteps) : 0.0f;
+    const float tokensPerSubstep = standing && flowing
+        ? _ratePerMs * static_cast<float>(dtMs) / static_cast<float>(kSubsteps)
+        : 0.0f;
+
+    // Into the direction the grains fall: a lateral grain lands in a column
+    // that was swept already, so it moves at most one cell per pass - the same
+    // rule the vertical sweep runs on rows.
+    const int dir = gravity == Gravity::Left ? -1 : (gravity == Gravity::Right ? 1 : 0);
 
     bool moved = false;
     for (int i = 0; i < kSubsteps; ++i) {
-        if (flowing) {
+        if (standing && flowing) {
             _tokens += tokensPerSubstep;
             if (_tokens > kBucketGrains) {
                 _tokens = kBucketGrains;
             }
         }
-        if (settleOneStep()) {
+        if (dir == 0 ? settleOneStep() : settleLateralStep(dir)) {
             moved = true;
         }
     }
 
-    if (govern()) {
+    if (standing && govern()) {
         moved = true;
     }
 
@@ -227,6 +240,68 @@ bool sand::Simulation::settleOneStep()
     }
 
     return moved;
+}
+
+bool sand::Simulation::settleLateralStep(int dir)
+{
+    bool moved = false;
+
+    // Columns swept from the destination wall outwards - the mirror of the
+    // vertical sweep's bottom-up - so a moved grain is not swept twice; rows
+    // in a random order per column.
+    const int startCol = dir < 0 ? 0 : kGridWidth - 1;
+    const int stepCol  = dir < 0 ? 1 : -1;
+    for (int c = startCol; c >= 0 && c < kGridWidth; c += stepCol) {
+        const bool downward = (random() & 1u) != 0;
+        for (int i = 0; i < kGridHeight; ++i) {
+            const int r = downward ? i : kGridHeight - 1 - i;
+            if (_rowCount[r] == 0 || !grain(r, c)) {
+                continue;
+            }
+            if (tryFallLateral(r, c, dir)) {
+                moved = true;
+            }
+        }
+    }
+
+    return moved;
+}
+
+bool sand::Simulation::tryFallLateral(int row, int col, int dir)
+{
+    const int first = rowFirst(row);
+    const int last  = rowLast(row);
+    if (col < first || col > last) {
+        return false;
+    }
+
+    // Straight, toward the wall - then the two spill diagonals, in a random
+    // order. A lateral step never leaves the row: the row is the boundary
+    // between the bulbs, so nothing can cross the neck sideways, and the
+    // grains of the neck row slide inside the neck.
+    const int next = col + dir;
+    if (next >= first && next <= last && !grain(row, next)) {
+        takeGrain(row, col);
+        putGrain(row, next);
+        return true;
+    }
+
+    const bool upFirst = (random() & 1u) != 0;
+    for (int i = 0; i < 2; ++i) {
+        const int r = row + (((i == 0) == upFirst) ? -1 : 1);
+        if (r < 0 || r >= kGridHeight) {
+            continue;
+        }
+        if (next < rowFirst(r) || next > rowLast(r) || grain(r, next)) {
+            continue;
+        }
+
+        takeGrain(row, col);
+        putGrain(r, next);
+        return true;
+    }
+
+    return false;
 }
 
 bool sand::Simulation::tryFall(int row, int col)

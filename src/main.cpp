@@ -1,5 +1,5 @@
 /*
- * Hourglass - stage 3 firmware for the M5Stack Cardputer-ADV.
+ * Hourglass - stage 4 firmware for the M5Stack Cardputer-ADV.
  *
  * The app is complete: menu and settings, NVS, the timer state machine, IMU
  * orientation, the completion chime, and the falling-sand animation that draws the
@@ -88,11 +88,10 @@ constexpr uint16_t kSandLogSteps = 200;
 //
 // Every playRaw() failure ever recorded on this device - silent at low
 // levels, reset at high ones - happened under the espressif32@8.0.0 speaker
-// stack, the one that also reset tone(). The pinned generation plays tone()
-// audibly (confirmed on device), which is what makes this render worth
-// another try. If the chime goes silent or still resets the board, the
-// version pins are the first suspect; Speaker::tone() in the git history is
-// the proven fallback.
+// stack, the one that also reset tone(). The pinned generation plays this
+// chime audibly - confirmed on the device - and played tone() before it. If
+// the chime ever goes silent or resets the board, the version pins are the
+// first suspect; Speaker::tone() in the git history is the proven fallback.
 constexpr float    kChimeNoteHz[]  = {880.0f, 1174.66f};  // A5, then a longer D6
 constexpr uint32_t kChimeNoteMs[]  = {150, 300};
 constexpr uint8_t  kChimeNoteCount = 2;
@@ -448,7 +447,7 @@ void setup()
     gOrientation.begin(millis());
     gLastOrientation = gOrientation.update(millis());
 
-    Serial.printf("\nHourglass stage 3\n");
+    Serial.printf("\nHourglass stage 4\n");
     const esp_reset_reason_t bootReason = esp_reset_reason();
     hgLog("reset    : %s (%d)", resetReasonName(bootReason), static_cast<int>(bootReason));
     Serial.printf("board    : %s\n", boardName(M5.getBoard()));
@@ -536,8 +535,24 @@ void loop()
         gLastSandMs = now;
 
         const bool     flowing = gSession.state == AppState::Running && gSession.flow != 0;
+
+        // Lying flat is a paused hourglass whose picture keeps its frame: the
+        // sand slides across the picture, toward the lower wall of its own
+        // bulb. Which of the two side walls that is cannot be read from a flat
+        // pose (there the gravity points straight into the screen), so the
+        // convention is flat - screen up settles left, screen down settles
+        // right. Unknown or finished poses keep the vertical physics.
+        sand::Gravity gravity = sand::Gravity::Down;
+        if (gSession.state == AppState::Paused) {
+            if (gLastOrientation == Orientation::FlatUp) {
+                gravity = sand::Gravity::Left;
+            } else if (gLastOrientation == Orientation::FlatDown) {
+                gravity = sand::Gravity::Right;
+            }
+        }
+
         const uint32_t begin   = micros();
-        gSim.step(stepMs, app::frameLowerShare(gSession), flowing);
+        gSim.step(stepMs, app::frameLowerShare(gSession), flowing, gravity);
         const uint32_t spent = micros() - begin;
 
         gSandUsSum += spent;
