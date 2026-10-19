@@ -81,28 +81,18 @@ constexpr uint16_t kSandLogSteps = 200;
 // Completion signal: two soft sine notes.
 //
 // A square wave from Speaker::tone is harsh and thin on this speaker, so the
-// chime is built as PCM instead: 16 kHz, 8 bit unsigned (silence = 128), mono,
+// chime is built as PCM instead: 8 bit unsigned (silence = 128), mono,
 // raised-cosine fades on both edges of every note so there is no click, and a
 // gap of silence between them. The buffer is generated once in setup() from the
 // constants below - no asset file - and played as a single raw request, which is
 // asynchronous: the timer and the sand keep running while it sounds.
 //
-// 8 bit unsigned is the format Speaker::tone() plays through
-// (Speaker_Class.hpp: playRaw(const uint8_t*) hands _play_raw flg_16bit = false),
-// so it is the path this device has actually been heard through, and it halves
-// the .bss the buffer costs. The library is not why a 16 bit request stayed
-// quiet: its 16 bit path decodes and scales the data correctly
-// (Speaker_Class.inl: int16_t samples for is_16bit, 8 bit data scaled by 2^8).
-// What was wrong was the level this chime asked for - see below.
-//
-// Level: the speaker here is mono, and the audio task adds the two channels
-// together for a mono output (`l += r`, Speaker_Class.inl), so the peak the
-// codec receives is TWICE the peak of the buffer. The level used to be 0.70 at
-// master volume 255, i.e. 1.4 of full scale: measured through the library's own
-// conversion, 31 % of the samples came out clipped at full scale and the codec
-// plus the amplifier had to hold that for the whole 480 ms blip. 0.45 keeps the
-// mono sum under full scale even at the loudest master volume.
-constexpr uint32_t kChimeRate     = 16000;
+// The rate is the codec's native rate on purpose. At 16 kHz the audio task had
+// to resample 3:1 on the way to the 48 kHz output, and every request that went
+// through that path reset the device (panic); Speaker::tone(), which plays near
+// the output rate, never did. Generating at the native rate removes the only
+// difference between this request and the one that demonstrably works.
+constexpr uint32_t kChimeRate     = 48000;
 constexpr uint32_t kChimeNoteMs   = 170;
 constexpr uint32_t kChimeGapMs    = 70;
 constexpr uint32_t kChimeFadeMs   = 10;
