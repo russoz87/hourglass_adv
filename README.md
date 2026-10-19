@@ -86,6 +86,14 @@ lateral step never leaves its grid row, and the row is the boundary between
 the bulbs, so nothing crosses the neck while lying. Standing the device back
 on an edge returns to the standing physics and the clock.
 
+The idle animation gate is direction aware: the pause first runs the standing
+physics until the stream has landed (the flat pose is reported only after the
+pose hold time), and then the gravity change re-arms the settle, so the lying
+pile always gets its slide - it never freezes before that. A paused hourglass
+also drains nothing across the neck: the valve's leftover tokens are dropped,
+so the only level change a pause may still do is the governor reconciling the
+one or two grains the clock had already counted but the drip had not run.
+
 ### Orientation
 
 Measured on the device with the stage 1 bring-up screen, accelerometer in g
@@ -174,8 +182,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87900 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 509669 bytes from 1376256 bytes)
-firmware.bin: 510032 bytes
+Flash: [====      ]  37.0% (used 509693 bytes from 1376256 bytes)
+firmware.bin: 510064 bytes
 ```
 
 ## Installing on the device

@@ -112,6 +112,11 @@ Facts that keep code honest:
   that row is what keeps the bulbs separated, so nothing crosses the neck.
   The screen-up-to-left / screen-down-to-right mapping is a documented
   convention: a flat pose cannot see which side wall is physically lower.
+  The settle gate is direction aware (`settled(gravity)`): a pile that went
+  still under the standing physics re-arms when the gravity switches, which
+  is what gets the lying pile moving; a paused hourglass drops the valve's
+  leftover tokens, so the only level change a pause may still make is the
+  governor reconciling a grain or two the clock had already counted.
 
 ## Debugging without the IMU (flat on a desk)
 

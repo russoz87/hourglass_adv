@@ -522,11 +522,30 @@ void loop()
 
     // The sand steps with the frame rate. Once the pile has come to rest - in
     // PAUSED or DONE - stepping stops, so a still hourglass costs nothing.
+    // "At rest" is per gravity direction: laying the device flat re-arms the
+    // settle even when the standing pile had already stopped, which is exactly
+    // the pause that starts the lateral slide.
     const bool sandShown = gSession.state == AppState::Running ||
                            gSession.state == AppState::Paused ||
                            gSession.state == AppState::Done ||
                            gSession.state == AppState::Finish;
-    if (sandShown && (gSession.state == AppState::Running || !gSim.settled()) &&
+
+    // Lying flat is a paused hourglass whose picture keeps its frame: the sand
+    // slides across the picture, toward the lower wall of its own bulb. Which
+    // of the two side walls that is cannot be read from a flat pose (there the
+    // gravity points straight into the screen), so the convention is flat -
+    // screen up settles left, screen down settles right. Unknown or finished
+    // poses keep the vertical physics.
+    sand::Gravity gravity = sand::Gravity::Down;
+    if (gSession.state == AppState::Paused) {
+        if (gLastOrientation == Orientation::FlatUp) {
+            gravity = sand::Gravity::Left;
+        } else if (gLastOrientation == Orientation::FlatDown) {
+            gravity = sand::Gravity::Right;
+        }
+    }
+
+    if (sandShown && (gSession.state == AppState::Running || !gSim.settled(gravity)) &&
         now - gLastSandMs >= kSandStepMs) {
         uint32_t stepMs = now - gLastSandMs;
         if (stepMs > kMaxSandStepMs) {
@@ -535,21 +554,6 @@ void loop()
         gLastSandMs = now;
 
         const bool     flowing = gSession.state == AppState::Running && gSession.flow != 0;
-
-        // Lying flat is a paused hourglass whose picture keeps its frame: the
-        // sand slides across the picture, toward the lower wall of its own
-        // bulb. Which of the two side walls that is cannot be read from a flat
-        // pose (there the gravity points straight into the screen), so the
-        // convention is flat - screen up settles left, screen down settles
-        // right. Unknown or finished poses keep the vertical physics.
-        sand::Gravity gravity = sand::Gravity::Down;
-        if (gSession.state == AppState::Paused) {
-            if (gLastOrientation == Orientation::FlatUp) {
-                gravity = sand::Gravity::Left;
-            } else if (gLastOrientation == Orientation::FlatDown) {
-                gravity = sand::Gravity::Right;
-            }
-        }
 
         const uint32_t begin   = micros();
         gSim.step(stepMs, app::frameLowerShare(gSession), flowing, gravity);

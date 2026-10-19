@@ -488,24 +488,45 @@ void testFlatSettle()
     const int belowBefore = sim.grainsBelow();
     check(belowBefore > 500, "the cycle has delivered a share of the load", "(grains below)");
 
+    // The device reports a flat pose only after the pose hold time; until then
+    // the paused sim runs the standing physics and the stream lands on the
+    // pile. This is the rest the lateral settle starts from on the device - and
+    // the case the previous build slept through (the idle gate never re-armed).
+    int idle = 0;
+    do {
+        sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Down);
+        ++idle;
+    } while (!sim.settled() && idle < 2000);
+    check(sim.settled(), "the standing pause settles the stream to rest");
+
+    // The governor reconciles the freeze: the pause may catch the clock a
+    // grain or two ahead of the drip, and the standing physics releases those
+    // few - that is "the timer is the truth", not a leak.
+    const int reconcile = sim.grainsBelow() - belowBefore;
+    check(reconcile >= 0 && reconcile <= 8,
+          "the standing pause only lets the governor reconcile the level", "(few grains)");
+    const int belowFlat = sim.grainsBelow();  // the baseline the lying pose starts from
+
     double upperBefore = meanCol(sim, 0, sand::kNeckRow);
     double lowerBefore = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
 
-    // Lay it flat, screen up: the sand slides across the picture, toward the
-    // left wall of its own bulb; the clock stands still, nothing crosses.
+    // Lay it flat, screen up: despite the rest, the gravity change re-arms the
+    // settle, and the sand slides across the picture toward the left wall of
+    // its own bulb; the clock stands still, nothing crosses.
+    check(!sim.settled(sand::Gravity::Left), "a flat pose re-arms the lateral settle");
     int  frames  = 0;
     bool crossed = false;
-    do {  // do-while: one step even when the pile already looks at rest
+    do {
         sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Left);
-        if (sim.grainsBelow() != belowBefore) {
+        if (sim.grainsBelow() != belowFlat) {
             crossed = true;
         }
         ++frames;
-    } while (!sim.settled() && frames < 2000);
+    } while (!sim.settled(sand::Gravity::Left) && frames < 2000);
     check(!crossed, "no grain crosses the neck while flat");
     check(allInsideMask(sim), "the flat settle keeps every grain in the glass");
     check(countGrains(sim) == sand::kGrains, "the flat settle conserved the grains");
-    check(sim.settled(), "the flat sand comes to rest");
+    check(sim.settled(sand::Gravity::Left), "the flat sand comes to rest");
 
     const double upperAfter = meanCol(sim, 0, sand::kNeckRow);
     const double lowerAfter = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
@@ -513,20 +534,22 @@ void testFlatSettle()
           "the sand slid toward the left wall of each bulb");
     char detail[96];
     std::snprintf(detail, sizeof(detail),
-                  "(settled in %d frames, upper %.1f -> %.1f below neck %d)",
-                  frames, upperBefore, upperAfter, sim.grainsBelow());
+                  "(idle %d + flat %d frames, upper %.1f -> %.1f below neck %d)",
+                  idle, frames, upperBefore, upperAfter, sim.grainsBelow());
     std::printf("      %s\n", detail + 1);
 
-    // Screen down is the mirror: the pile slides to the right wall.
+    // Screen down is the mirror: the pose change re-arms again, the pile slides
+    // to the right wall.
+    check(!sim.settled(sand::Gravity::Right), "the pose change re-arms for the other wall");
     frames  = 0;
     crossed = false;
     do {
         sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Right);
-        if (sim.grainsBelow() != belowBefore) {
+        if (sim.grainsBelow() != belowFlat) {
             crossed = true;
         }
         ++frames;
-    } while (!sim.settled() && frames < 2000);
+    } while (!sim.settled(sand::Gravity::Right) && frames < 2000);
     check(!crossed, "the flat pose keeps the neck sealed both ways");
     const double upperRight = meanCol(sim, 0, sand::kNeckRow);
     const double lowerRight = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
@@ -538,7 +561,7 @@ void testFlatSettle()
         sim.step(kFrameMs, clock.lowerShare(), clock.flowing(), sand::Gravity::Down);
         clock.advance(kFrameMs);
     }
-    check(sim.grainsBelow() > belowBefore, "standing up resumes the countdown");
+    check(sim.grainsBelow() > belowFlat, "standing up resumes the countdown");
     check(countGrains(sim) == sand::kGrains, "resuming conserved the grains");
 }
 

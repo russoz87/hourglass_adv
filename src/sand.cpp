@@ -74,6 +74,7 @@ void sand::Simulation::reset(uint32_t durationMs)
     _tokens  = 0.0f;
     _settled = false;
     _rng     = kSeed;
+    _lastGravity = Gravity::Down;
 
     // The interval turns into a rate here: the whole upper bulb has to run
     // through the neck in `durationMs`, whatever gravity alone would do.
@@ -154,12 +155,22 @@ void sand::Simulation::flip()
     // running upwards - the one thing this simulation must never show.
     _below   = kGrains - _below;
     _settled = false;
+    _lastGravity = Gravity::Down;
 }
 
 void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity)
 {
     if (dtMs == 0) {
         return;
+    }
+
+    // A gravity change re-arms the settle: the pile that rested under the old
+    // direction still owes its slide under the new one. This is what makes the
+    // flat pose start moving a pile that had already gone still during the
+    // pause, under the standing physics.
+    if (_lastGravity != gravity) {
+        _lastGravity = gravity;
+        _settled     = false;
     }
 
     // A flat pose holds the clock: the share, the valve target and the valve
@@ -177,6 +188,13 @@ void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravi
             target = kGrains;
         }
         _target = target;
+
+        if (!flowing) {
+            // A paused hourglass must not drain the valve's leftover bucket:
+            // with the timer stopped no token is added and nothing crosses -
+            // exactly what the model says.
+            _tokens = 0.0f;
+        }
     }
 
     // Per substep, so the grains that cross the neck spread over the frame

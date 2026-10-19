@@ -110,9 +110,15 @@ public:
     // standing hourglass (valve, governor), `Left`/`Right` the flat settle.
     void step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity = Gravity::Down);
 
-    // True when the last step moved nothing: the pile is at rest and the caller
-    // can stop animating the picture.
-    bool settled() const { return _settled; }
+    // True when the last step moved nothing under the gravity of `gravity`:
+    // the pile is at rest for that direction and the caller can stop animating
+    // the picture. A gravity change re-arms the settle (the resting lateral
+    // pile still owes its slide, and the other way around), so gate the
+    // stepping with the direction you are about to apply.
+    bool settled(Gravity gravity = Gravity::Down) const
+    {
+        return _settled && _lastGravity == gravity;
+    }
 
     // Grains below the throat, in the frame that is drawn right now.
     int grainsBelow() const { return _below; }
@@ -156,12 +162,13 @@ private:
     uint8_t  _rowFirst[kGridHeight]           = {};
     uint8_t  _rowLast[kGridHeight]            = {};
 
-    float    _ratePerMs = 0.0f;  // valve: grains per millisecond
-    float    _tokens    = 0.0f;  // valve: grains that may still cross
-    int      _target    = 0;     // grains the timer says belong below the throat
-    int      _below     = 0;     // grains that have run through the neck
-    bool     _settled   = true;
-    uint32_t _rng       = 1;
+    float    _ratePerMs   = 0.0f;  // valve: grains per millisecond
+    float    _tokens      = 0.0f;  // valve: grains that may still cross
+    int      _target      = 0;     // grains the timer says belong below the throat
+    int      _below       = 0;     // grains that have run through the neck
+    bool     _settled     = true;
+    Gravity  _lastGravity = Gravity::Down;  // the direction "settled" was measured under
+    uint32_t _rng         = 1;
 };
 
 }  // namespace sand
