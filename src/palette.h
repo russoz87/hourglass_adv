@@ -50,12 +50,13 @@ constexpr Palette kPalettes[kPaletteCount] = {
 };
 
 // Scales a colour towards black; percent 0 is black, 100 is the colour itself.
+// Single return statement: the build standard is gnu++11, whose constexpr
+// functions allow nothing else.
 constexpr uint16_t dimmed(uint16_t color, uint8_t percent)
 {
-    const uint32_t r = ((color >> 11) & 0x1F) * percent / 100;
-    const uint32_t g = ((color >> 5) & 0x3F) * percent / 100;
-    const uint32_t b = ((color) & 0x1F) * percent / 100;
-    return static_cast<uint16_t>((r << 11) | (g << 5) | b);
+    return static_cast<uint16_t>((((((color >> 11) & 0x1F) * percent) / 100) << 11) |
+                                 ((((color >> 5) & 0x3F) * percent) / 100) << 5 |
+                                 (((color & 0x1F) * percent) / 100));
 }
 
 // Palette lookups clamp their index: a stale NVS value must not read past the
