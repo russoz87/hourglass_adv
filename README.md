@@ -54,10 +54,12 @@ interval label stands in its place). Each change is written to NVS immediately.
 **ARMED** (landscape) - the selected interval, `Place on side to start`, and the
 debug hint.
 
-**RUNNING** (portrait) - geometric hourglass, `mm:ss` and the sand level;
-**PAUSED** is the same screen with a `Paused` label; **DONE** shows the full lower
-bulb, `Flip to restart`, and plays a two-tone completion signal (A5, then a
-longer D6) through `Speaker::tone()` when the sound is on.
+**RUNNING** (portrait) - geometric hourglass, `mm:ss` (unless the Clock setting
+hides it) and the sand level; **PAUSED** is the same screen with a `Paused`
+label; **DONE** shows the full lower
+bulb, `Flip to restart`, and plays the soft chime - A5, then a longer D6,
+rendered as sines with fades into one PCM buffer played through
+`Speaker::playRaw()` - when the sound is on.
 
 ### Timer model
 
@@ -156,9 +158,9 @@ pair is pinned at 0.2.20 / 0.2.27 and must only move together.
 Current image (stage 3):
 
 ```
-RAM:   [=         ]  12.2% (used  39908 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 508921 bytes from 1376256 bytes)
-firmware.bin: 509280 bytes
+RAM:   [===       ]  26.8% (used  87900 bytes from 327680 bytes)
+Flash: [====      ]  37.0% (used 509173 bytes from 1376256 bytes)
+firmware.bin: 509536 bytes
 ```
 
 ## Installing on the device
@@ -247,7 +249,7 @@ After installing the build:
    clock count up; at the empty bulb the app shows FINISH (the same picture,
    "Flip to start") instead of switching screens, and flipping again starts a
    new cycle.
-7. Let it finish (or walk it with the up key): the two-tone signal sounds and
+7. Let it finish (or walk it with the up key): the chime sounds and DONE shows;
    DONE shows; flipping to the other edge starts a new cycle. Enter restarts from
    DONE and FINISH too.
 8. `Del` from RUNNING returns to the menu.
@@ -268,14 +270,13 @@ After installing the build:
   flat, the grains inside each bulb settle towards the physically lower wall of
   their own bulb, like a real hourglass lying on its side; nothing crosses the
   neck, the timer stays paused.
-- **Open: a softer completion signal.** The shipped signal is the two-tone
-  `Speaker::tone()` call (A5, then a longer D6), confirmed playing on the
-  device. What made it possible at all is the toolchain pin: on
-  arduino-esp32 3.x every speaker call reset the board (see
-  Troubleshooting); on the pinned 2.0.17 generation the audio is proven on
-  this hardware, and the speaker is started once at boot the way AdvanceOS
-  does it - no `end()` dance. The soft PCM chime (`Speaker::playRaw()`,
-  sine with fades) is still parked: it stayed silent at low levels and
-  reset at high ones. The audio probe that bisected the panics was removed
-  after the confirmation; resurrect it from git history (`9da7d92`) as the
-  bench for the next round of experiments.
+- **Softer chime: audition on the device.** The shipped signal is now the
+  rendered PCM chime (A5, then a longer D6, sines with fades, one buffer
+  through `Speaker::playRaw()`) instead of the two-tone figure
+  `Speaker::tone()` played. That figure is confirmed audible on the device;
+  this chime is its soft twin and is waiting for the same confirmation -
+  checklist items 7 and 10 are the audition. Every `playRaw()` failure ever
+  recorded (silent at low levels, reset at high ones) happened under the
+  espressif32@8.0.0 speaker stack, so a failure here points at the version
+  pins first; `Speaker::tone()` in the git history is the proven fallback,
+  and the probe that bisected the original panic is around `9da7d92`.

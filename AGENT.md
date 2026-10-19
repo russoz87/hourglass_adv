@@ -94,13 +94,18 @@ Facts that keep code honest:
   `src/orientation.cpp` - they are measured, not invented, so don't tune them
   without the device. The screen-down pose is still **unconfirmed** on device.
 - Audio: speaker is configured once at boot (AdvanceOS style:
-  `sample_rate = 96000`, no `end()` dance) and the completion signal is
-  `Speaker::tone()` (A5, then a longer D6) - confirmed playing on the
-  device. `Speaker::playRaw()` has not produced a sound on this board yet -
-  the softer PCM chime is parked in README "Next stages". The probe
-  firmware that bisected the panic was removed after the confirmation;
-  resurrect it from git history (commit `9da7d92`) when a new on-device
-  audio experiment bench is needed.
+  `sample_rate = 96000`, no `end()` dance; the rate is one constant,
+  `kSpeakerSampleRate` in `main.cpp`, shared by the config and the chime -
+  `playRaw()` takes the rate explicitly, so the two must agree). The
+  completion chime is rendered once at boot (A5, then a longer D6, sines
+  with fades, unsigned 8-bit, ~19% amplitude) and plays in one call on
+  `Speaker::playRaw()` channel 0 - nothing is scheduled in the loop anymore.
+  `Speaker::tone()` played the same figure and is the proven fallback:
+  every `playRaw()` failure recorded so far (silent at low level, reset at
+  high) happened under the espressif32@8.0.0 speaker stack. The chime's
+  audition on the device is README checklist items 7 and 10; when it
+  misbehaves, suspect the version pins first. The probe that bisected the
+  original panic is in git history around commit `9da7d92`.
 
 ## Debugging without the IMU (flat on a desk)
 

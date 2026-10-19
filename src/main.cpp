@@ -38,6 +38,8 @@
  */
 
 #include <M5Cardputer.h>
+#include <cmath>
+#include <cstring>
 #include <esp_system.h>
 
 #include "app_state.h"
@@ -58,11 +60,14 @@ constexpr uint32_t kLoopDelayMs     = 5;
 constexpr uint32_t kRunningRenderMs = 50;   // 20 frames per second while running
 constexpr uint8_t  kBrightness      = 128;  // the app is watched for minutes
 
-// Master volume. The completion signal is the only sound the app makes, and it
-// is a full-scale square wave from Speaker::tone: the speaker path sums the two
-// channels for its mono output, so 128 puts the sum exactly on the rail - the
-// loudest setting that does not clip, and clipping is what made louder
-// attempts sound harsher rather than louder.
+// Speaker rate: the speaker task plays what it was configured for, and
+// playRaw() takes the rate explicitly - the two must agree, so both read one
+// constant. AdvanceOS uses 96000.
+constexpr uint32_t kSpeakerSampleRate = 96000;
+
+// Master volume. The completion chime renders its own envelope and sits around
+// a fifth of the channel range, so the master no longer has to hug the rail -
+// 128 keeps the sum away from it, and the render controls the loudness.
 constexpr uint8_t  kSpeakerVolume   = 128;
 
 // The sand advances at the frame rate, not every pass of the loop: the automaton
@@ -76,19 +81,30 @@ constexpr uint32_t kMaxSandStepMs = 200;
 // How often the cost of a sand step is reported on the serial log.
 constexpr uint16_t kSandLogSteps = 200;
 
-// Completion signal: two short tones, a fourth apart.
+// Completion chime: the same two notes the tone() figure played (A5, then a
+// longer D6 - a fourth apart), rendered once at boot into soft PCM and played
+// in one go through Speaker::playRaw(). The envelope a square wave cannot
+// have is the whole point: every note is a sine with a fade in and out.
 //
-// Speaker::tone() is the only audio path this device has run without a reset -
-// every raw PCM request through playRaw() panicked it, at 16 kHz and at the
-// codec's native 48 kHz alike (the investigation and what is still open are
-// recorded in the README backlog). A square wave has no envelope to soften, so
-// the signal is a short two-note figure instead of the two identical beeps the
-// stage 2 build played: the first note sings, the second one, longer and lower,
-// closes it.
-constexpr float    kDoneNoteHz[]  = {880.0f, 1174.66f};  // A5, then D6
-constexpr uint32_t kDoneNoteMs[]  = {120, 200};
-constexpr uint8_t  kDoneNoteCount = 2;
-constexpr uint32_t kDoneNoteGapMs = 60;
+// Every playRaw() failure ever recorded on this device - silent at low
+// levels, reset at high ones - happened under the espressif32@8.0.0 speaker
+// stack, the one that also reset tone(). The pinned generation plays tone()
+// audibly (confirmed on device), which is what makes this render worth
+// another try. If the chime goes silent or still resets the board, the
+// version pins are the first suspect; Speaker::tone() in the git history is
+// the proven fallback.
+constexpr float    kChimeNoteHz[]  = {880.0f, 1174.66f};  // A5, then a longer D6
+constexpr uint32_t kChimeNoteMs[]  = {150, 300};
+constexpr uint8_t  kChimeNoteCount = 2;
+constexpr uint32_t kChimeGapMs     = 50;
+constexpr float    kChimeAmplitude  = 48.0f;  // ~19% of the range: soft, clear of the rails
+constexpr uint32_t kChimeFadeMs    = 15;     // per note edge: the softness itself
+constexpr size_t   kChimeSamples =
+    (kChimeNoteMs[0] + kChimeGapMs + kChimeNoteMs[1]) * kSpeakerSampleRate / 1000;
+
+// Unsigned 8-bit, the WAV convention: silence is the 128 centre line. Filled
+// once at setup; the speaker task streams it with nothing running in the loop.
+alignas(4) uint8_t gChimeData[kChimeSamples];
 
 // Debug step per arrow press, see the header of this file.
 constexpr float kDebugStep = 0.1f;
@@ -115,12 +131,6 @@ uint32_t gLastSandMs   = 0;
 uint32_t gSandSteps   = 0;
 uint32_t gSandUsSum   = 0;
 uint32_t gSandUsMax   = 0;
-
-// The completion signal is played one note at a time from the loop: tone()
-// replaces whatever is sounding, so the gap between the calls separates the
-// notes, and nothing blocks while they play.
-uint8_t  gNotesLeft  = 0;
-uint32_t gNextNoteMs = 0;
 
 // Why the device started this time. A reset that happens while the chime plays
 // shows up here in the serial log on the next boot: `brownout` is the supply
@@ -152,31 +162,48 @@ const char* boardName(m5::board_t board)
     }
 }
 
-// Starts the two-note completion signal. The notes are played one at a time
-// from the loop: tone() replaces whatever is sounding, so the gap between the
-// calls is what separates the notes, and nothing blocks while they play.
-void startDoneChime(uint32_t nowMs)
+// Renders the chime once at boot: a sine per note with linear fades at both
+// edges, silence in the gap. The whole chime is one buffer, so the speaker
+// task streams it with nothing left to generate at play time.
+void renderChime()
+{
+    std::memset(gChimeData, 128, sizeof(gChimeData));
+
+    size_t offset = 0;
+    for (uint8_t note = 0; note < kChimeNoteCount; ++note) {
+        const uint32_t length = kChimeNoteMs[note] * kSpeakerSampleRate / 1000;
+        const uint32_t fade   = kChimeFadeMs * kSpeakerSampleRate / 1000;
+        for (uint32_t i = 0; i < length; ++i) {
+            const float phase =
+                2.0f * 3.14159265f * kChimeNoteHz[note] * static_cast<float>(i) /
+                static_cast<float>(kSpeakerSampleRate);
+            float envelope = 1.0f;
+            if (i < fade) {
+                envelope = static_cast<float>(i) / static_cast<float>(fade);
+            } else if (i > length - fade) {
+                envelope = static_cast<float>(length - i) / static_cast<float>(fade);
+            }
+            const float value = 128.0f + kChimeAmplitude * std::sin(phase) * envelope;
+            gChimeData[offset + i] = static_cast<uint8_t>(value + 0.5f);
+        }
+        offset += length;
+        if (note + 1 < kChimeNoteCount) {
+            offset += kChimeGapMs * kSpeakerSampleRate / 1000;  // the gap stays silent
+        }
+    }
+}
+
+// Plays the chime on the speaker's virtual channel 0: one call, no scheduler
+// left in the loop. A retrigger (two cycles ending close together) replaces
+// whatever is sounding.
+void playDoneChime()
 {
     if (!gSettings.soundOn) {
         return;
     }
-    gNotesLeft  = kDoneNoteCount;
-    gNextNoteMs = nowMs;
-}
-
-void serviceChime(uint32_t nowMs)
-{
-    if (gNotesLeft == 0 || static_cast<int32_t>(nowMs - gNextNoteMs) < 0) {
-        return;
-    }
-
-    const uint8_t idx = static_cast<uint8_t>(kDoneNoteCount - gNotesLeft);
-    // Explicit channel 0, like the shipped ADV audio apps: the automatic
-    // channel pick is one more moving part that the working setup avoids.
-    M5.Speaker.tone(kDoneNoteHz[idx], kDoneNoteMs[idx], /*channel=*/0,
-                    /*stop_current_sound=*/true);
-    --gNotesLeft;
-    gNextNoteMs = nowMs + kDoneNoteMs[idx] + kDoneNoteGapMs;
+    M5.Speaker.playRaw(gChimeData, sizeof(gChimeData), kSpeakerSampleRate,
+                       /*stereo=*/false, /*repeat=*/1, /*channel=*/0,
+                       /*stop_current_sound=*/true);
 }
 
 // Turns the switch around. Switching sound on plays the signal at once: that is
@@ -187,7 +214,7 @@ void toggleSound()
     gSettings.setSound(!gSettings.soundOn);
     gDirty = true;
     if (gSettings.soundOn) {
-        startDoneChime(millis());
+        playDoneChime();
     }
 }
 
@@ -402,11 +429,12 @@ void setup()
     // not do it.
     {
         auto speakerCfg        = M5.Speaker.config();
-        speakerCfg.sample_rate = 96000;
+        speakerCfg.sample_rate = kSpeakerSampleRate;
         M5.Speaker.config(speakerCfg);
     }
     M5.Speaker.begin();
     M5.Speaker.setVolume(kSpeakerVolume);
+    renderChime();
 
     canvas::begin();
 
@@ -489,7 +517,7 @@ void loop()
     if (gSession.state != before) {
         gDirty = true;
         if (gSession.state == AppState::Done) {
-            startDoneChime(now);
+            playDoneChime();
         }
     }
 
@@ -530,8 +558,6 @@ void loop()
     } else if (!sandShown) {
         gLastSandMs = now;
     }
-
-    serviceChime(now);
 
     const bool running = gSession.state == AppState::Running;
     if (gDirty || (running && now - gLastRenderMs >= kRunningRenderMs)) {
