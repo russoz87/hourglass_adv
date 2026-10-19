@@ -176,7 +176,10 @@ void serviceChime(uint32_t nowMs)
     }
 
     const uint8_t idx = static_cast<uint8_t>(kDoneNoteCount - gNotesLeft);
-    M5.Speaker.tone(kDoneNoteHz[idx], kDoneNoteMs[idx]);
+    // Explicit channel 0, like the shipped ADV audio apps: the automatic
+    // channel pick is one more moving part that the working setup avoids.
+    M5.Speaker.tone(kDoneNoteHz[idx], kDoneNoteMs[idx], /*channel=*/0,
+                    /*stop_current_sound=*/true);
     --gNotesLeft;
     gNextNoteMs = nowMs + kDoneNoteMs[idx] + kDoneNoteGapMs;
 }
@@ -374,6 +377,21 @@ void setup()
 
     M5Cardputer.Display.setRotation(kRotationLandscape);
     M5Cardputer.Display.setBrightness(kBrightness);
+
+    // Audio, the way the shipped Cardputer-ADV apps set it up (Enso does the
+    // same end/config/begin dance): the speaker M5Cardputer.begin() leaves
+    // behind has a small DMA buffer and an unpinned task, and that is the one
+    // configuration on this board that has ever panicked when it was asked to
+    // play - the defaults here are the ones an ADV audio app runs with.
+    M5.Speaker.end();
+    {
+        auto speakerCfg        = M5.Speaker.config();
+        speakerCfg.dma_buf_len = 512;
+        speakerCfg.dma_buf_count = 8;
+        speakerCfg.task_pinned_core = APP_CPU_NUM;
+        M5.Speaker.config(speakerCfg);
+    }
+    M5.Speaker.begin();
     M5.Speaker.setVolume(kSpeakerVolume);
 
     canvas::begin();

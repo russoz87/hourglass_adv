@@ -252,7 +252,12 @@ After installing the build:
 - **Open: a softer completion signal.** The PCM chime (sine, soft fades) cannot
   be played on this device yet: every `Speaker::playRaw()` request panicked the
   device - at 16 kHz and at the native 48 kHz, at low and high level, 8 bit and
-  16 bit - while `Speaker::tone()`, which is the path shipped now, never did.
-  The reset reason on the menu reads `panic (4)`; getting the Guru Meditation
-  backtrace off the device (the USB serial capture never came up on this Mac)
-  is the next step, and the sine chime can then be revisited.
+  16 bit - and so did `Speaker::tone()` in these builds, while the same call was
+  heard in stage 2. The speaker is now reconfigured the way the shipped
+  Cardputer-ADV apps do it (stop the default speaker, `dma_buf_len` 512, task
+  pinned to the app core, start again - see Enso), which is the one difference
+  from a configuration that is known to work on this board. The reset reason on
+  the menu reads `panic (4)`; if it happens again, the next step is a minimal
+  reproduction firmware (speaker + one tone, nothing else) to separate the app
+  from the audio subsystem, and getting the Guru Meditation backtrace off the
+  device.
