@@ -61,10 +61,10 @@ void drawOutline(lgfx::LovyanGFX& g, const Vessel& vessel, uint16_t color)
                color);
 }
 
-// Fills the share of a bulb that holds sand. For the upper bulb the sand sits on
-// top (it is draining from the bottom), for the lower bulb it sits at the bottom.
-// The level is linear in the share: with a placeholder picture that is close
-// enough, and stage 3 replaces it with the real simulation.
+// Fills the share of a bulb that holds sand. In the upper bulb the sand
+// rests on its bottom, above the orifice: as the bulb drains the surface
+// drops from the top plate towards the neck, so the empty space grows from
+// the top. In the lower bulb the sand piles up from the bottom plate.
 void fillUpperBulb(lgfx::LovyanGFX& g, const Vessel& vessel, float share, uint16_t color)
 {
     if (share <= 0.0f) {
@@ -74,10 +74,10 @@ void fillUpperBulb(lgfx::LovyanGFX& g, const Vessel& vessel, float share, uint16
         share = 1.0f;
     }
 
-    const int16_t level =
-        static_cast<int16_t>(vessel.top + share * static_cast<float>(vessel.neck - vessel.top));
+    const int16_t level = static_cast<int16_t>(
+        vessel.neck - share * static_cast<float>(vessel.neck - vessel.top));
 
-    for (int16_t y = vessel.top; y <= level; ++y) {
+    for (int16_t y = level; y <= vessel.neck; ++y) {
         const int16_t half = halfWidthAt(vessel, y);
         g.drawFastHLine(vessel.centerX - half, y, 2 * half, color);
     }
