@@ -257,9 +257,8 @@ After installing the build:
 
 ## Next stages
 
-- **Later:** a way back into the Launcher from the app (that needs the Launcher's
-  boot-entry convention), and dropping the raw IMU trace once the axis table is
-  confirmed on the device.
+- **Later:** dropping the raw IMU trace once the axis table is confirmed on
+  the device; the screen-down pose is the one pose still unconfirmed.
 - **Improvements (user backlog):** flat-pose physics - while the hourglass lies
   flat, the grains inside each bulb settle towards the physically lower wall of
   their own bulb, like a real hourglass lying on its side; nothing crosses the
