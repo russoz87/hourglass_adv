@@ -101,16 +101,19 @@ void fillLowerBulb(lgfx::LovyanGFX& g, const Vessel& vessel, float share, uint16
     }
 }
 
-// The whole picture: glass outline plus sand. `progress` is the share of the
-// sand that has reached the lower bulb.
-void drawHourglass(lgfx::LovyanGFX& g, const Vessel& vessel, float progress, uint16_t sand,
-                   bool flowing)
+// The whole picture: glass outline plus sand. `upperShare` and `lowerShare`
+// are the fractions of the two bulbs that hold sand, in the frame being drawn.
+// Which bulb is "upper" is a property of the frame, not of the timer: standing
+// the device on the opposite side rotates the picture 180 degrees, so the
+// bulb the sand has run into becomes the upper one (see drawRunning).
+void drawHourglass(lgfx::LovyanGFX& g, const Vessel& vessel, float upperShare,
+                   float lowerShare, uint16_t sand, bool flowing)
 {
     const uint16_t outline = dimmed(sand, 45);
 
     drawOutline(g, vessel, outline);
-    fillUpperBulb(g, vessel, 1.0f - progress, sand);
-    fillLowerBulb(g, vessel, progress, sand);
+    fillUpperBulb(g, vessel, upperShare, sand);
+    fillLowerBulb(g, vessel, lowerShare, sand);
 
     if (flowing) {
         // Placeholder for the falling stream: a short block in the neck. Stage 3
@@ -146,7 +149,7 @@ void hourglass_view::drawPreview(lgfx::LovyanGFX& g, int centerX, int centerY, i
                            static_cast<int16_t>(centerY + halfHeight),
                            static_cast<int16_t>(halfWidth / 8 + 1)};
 
-    drawHourglass(g, vessel, progress, color, false);
+    drawHourglass(g, vessel, 1.0f - progress, progress, color, false);
 }
 
 void hourglass_view::drawArmed(const app::Session& session, uint16_t sand)
@@ -185,7 +188,13 @@ void hourglass_view::drawRunning(const app::Session& session, uint16_t sand, boo
     app::formatInterval(session.intervalIdx, interval, sizeof(interval));
     drawCentered(g, interval, kPortraitWidth / 2, 34, 1, theme::kTextDim);
 
-    drawHourglass(g, kPortraitVessel, session.progress, sand, session.flow != 0);
+    // Standing on the opposite side flips the picture 180 degrees: the bulb
+    // the sand has run into (the forward bulb) is then the physically upper
+    // one, so the two shares swap. The sand itself never jumps: only the
+    // frame rotates around it.
+    const bool flipped = session.shownSide != session.forward;
+    const float upperShare = flipped ? session.progress : 1.0f - session.progress;
+    drawHourglass(g, kPortraitVessel, upperShare, 1.0f - upperShare, sand, session.flow != 0);
 
     if (paused) {
         drawCentered(g, "Paused", kPortraitWidth / 2, 218, 2, theme::kAccent);
@@ -204,7 +213,7 @@ void hourglass_view::drawDone(const app::Session& session, uint16_t sand)
     g.setTextDatum(textdatum_t::top_left);
 
     drawCentered(g, "Done", kPortraitWidth / 2, 6, 3, sand);
-    drawHourglass(g, kPortraitVessel, 1.0f, sand, false);
+    drawHourglass(g, kPortraitVessel, 0.0f, 1.0f, sand, false);
 
     drawCentered(g, "Flip to restart", kPortraitWidth / 2, 212, 1, theme::kText);
     drawCentered(g, "Enter: new  Del: menu", kPortraitWidth / 2, 223, 1, theme::kTextDim);
