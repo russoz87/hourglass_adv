@@ -109,6 +109,11 @@ constexpr int kChimeSamples =
 // Debug step per arrow press, see the header of this file.
 constexpr float kDebugStep = 0.1f;
 
+// DIAGNOSTIC, to be removed once the panic in the audio path is found: the
+// chime plays by itself a few seconds after boot, so a panic dump can be
+// captured on the serial port without touching the device.
+constexpr uint32_t kAutoChimeAfterMs = 5000;
+
 settings::Store         gSettings;
 app::Session            gSession;
 sand::Simulation        gSim;
@@ -140,6 +145,9 @@ uint32_t gSandUsMax   = 0;
 // One buffer, filled in setup(): the speaker task reads from it while it plays,
 // so it has to stay alive for as long as the chime can sound. 7680 bytes of .bss.
 uint8_t gChime[kChimeSamples];
+
+// Diagnostic: when set, the chime plays at this uptime (see kAutoChimeAfterMs).
+uint32_t gAutoChimeMs = 0;
 
 // Why the device started this time. A reset that happens while the chime plays
 // shows up here on the next boot: `brownout` is the supply sagging under the
@@ -467,6 +475,10 @@ void setup()
           static_cast<unsigned>(gSettings.colorIdx), paletteName(gSettings.colorIdx),
           gSettings.soundOn ? "on" : "off");
 
+    // Diagnostic: the chime plays by itself shortly after boot so that a panic
+    // dump lands in the serial capture without any user action.
+    gAutoChimeMs = millis() + kAutoChimeAfterMs;
+
     gLastTickMs   = millis();
     gLastRenderMs = gLastTickMs;
     gLastSandMs   = gLastTickMs;
@@ -557,6 +569,12 @@ void loop()
         gDirty = true;
     } else if (!sandShown) {
         gLastSandMs = now;
+    }
+
+    if (gAutoChimeMs != 0 && static_cast<int32_t>(now - gAutoChimeMs) >= 0) {
+        gAutoChimeMs = 0;
+        hgLog("diag     : auto chime test, playing now");
+        playDoneChime();
     }
 
     const bool running = gSession.state == AppState::Running;
