@@ -43,19 +43,12 @@ public:
 
     Orientation orientation() const { return _orientation; }
 
-    // Classification of the latest sample, before debouncing. Only useful for
-    // the serial log when the thresholds are tuned on the device.
-    Orientation instantaneous() const { return _instant; }
-
 private:
-    void logRawTrace(uint32_t nowMs);
-
-    float       _filtered[3]       = {0.0f, 0.0f, 0.0f};
-    bool        _filteredValid     = false;
-    uint32_t    _lastSampleMs      = 0;
-    uint32_t    _lastRawTraceMs    = 0;
-    Orientation _instant           = Orientation::Unstable;
-    Orientation _candidate         = Orientation::Unstable;
-    uint32_t    _candidateSinceMs  = 0;
-    Orientation _orientation       = Orientation::Unstable;
+    float       _filtered[3]      = {0.0f, 0.0f, 0.0f};
+    bool        _filteredValid    = false;
+    uint32_t    _lastSampleMs     = 0;
+    Orientation _instant          = Orientation::Unstable;
+    Orientation _candidate        = Orientation::Unstable;
+    uint32_t    _candidateSinceMs = 0;
+    Orientation _orientation      = Orientation::Unstable;
 };

@@ -78,9 +78,6 @@ constexpr uint32_t kSandStepMs = kRunningRenderMs;
 // comes back: the governor repairs whatever this drops.
 constexpr uint32_t kMaxSandStepMs = 200;
 
-// How often the cost of a sand step is reported on the serial log.
-constexpr uint16_t kSandLogSteps = 200;
-
 // Completion chime: the same two notes the tone() figure played (A5, then a
 // longer D6 - a fourth apart), rendered once at boot into soft PCM and played
 // in one go through Speaker::playRaw(). The envelope a square wave cannot
@@ -124,12 +121,6 @@ bool     gDirty        = true;
 uint32_t gLastRenderMs = 0;
 uint32_t gLastTickMs   = 0;
 uint32_t gLastSandMs   = 0;
-
-// Cost of a sand step, reported every kSandLogSteps steps so the budget can be
-// checked from the serial log on the device.
-uint32_t gSandSteps   = 0;
-uint32_t gSandUsSum   = 0;
-uint32_t gSandUsMax   = 0;
 
 // Why the device started this time. A reset that happens while the chime plays
 // shows up here in the serial log on the next boot: `brownout` is the supply
@@ -572,23 +563,7 @@ void loop()
 
         const bool     flowing = gSession.state == AppState::Running && gSession.flow != 0;
 
-        const uint32_t begin   = micros();
         gSim.step(stepMs, app::frameLowerShare(gSession), flowing, gravity);
-        const uint32_t spent = micros() - begin;
-
-        gSandUsSum += spent;
-        if (spent > gSandUsMax) {
-            gSandUsMax = spent;
-        }
-        if (++gSandSteps >= kSandLogSteps) {
-            hgLog("sand     : %lu steps, %lu us average, %lu us worst, %d below the neck",
-                  static_cast<unsigned long>(gSandSteps),
-                  static_cast<unsigned long>(gSandUsSum / gSandSteps),
-                  static_cast<unsigned long>(gSandUsMax), gSim.grainsBelow());
-            gSandSteps = 0;
-            gSandUsSum = 0;
-            gSandUsMax = 0;
-        }
 
         gDirty = true;
     } else if (!sandShown) {

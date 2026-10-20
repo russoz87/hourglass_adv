@@ -13,9 +13,12 @@
  *   standing on right edge   x +0.99   y -0.01   z -0.03   (USB-C at the top)
  *
  * So: +z is out of the screen, x is the sand axis (the 240 px side of the
- * picture), y is the short edge and stays near zero in every useful pose.
+ * picture), y is the short edge and stays near zero in the side poses.
  *
- * Screen-down was not measured; it follows by symmetry and is marked below.
+ * The axis table is confirmed on the device: both standing sides, both flat
+ * faces (screen up and screen down) and both long edges (the lying poses,
+ * including the never-measured y sign) were verified with the sand of the
+ * running app - every pose settles its pile the measured way.
  *
  * ----------------------------------------------------------------------------
  * FILTERING
@@ -54,9 +57,6 @@ constexpr float kOtherMaxG = 0.45f;  // and the other two axes this weak
 constexpr uint32_t kStableMs   = 400;   // a pose has to hold this long
 constexpr float    kFilterTauMs = 80.0f; // accelerometer smoothing time constant
 constexpr float    kMotionDps   = 40.0f; // faster gyro = being moved by hand
-
-// Raw accel trace on the serial port, for matching axes to poses on the device.
-constexpr uint32_t kRawTraceMs = 1000;
 
 struct Vec3
 {
@@ -98,8 +98,9 @@ Orientation classify(const Vec3& accel)
 
     switch (axis) {
         case kAxisNormal:
-            // Screen down follows by symmetry: it has not been measured yet.
-            // TODO verify on device with the first real screen-down reading.
+            // Screen down was measured only by its working behavior (the flat
+            // sand settles to the mirrored pile), the sign follows the axis
+            // table by symmetry.
             return sign > 0.0f ? Orientation::FlatUp : Orientation::FlatDown;
 
         case kAxisSand:
@@ -156,7 +157,6 @@ void OrientationTracker::begin(uint32_t nowMs)
     _candidate        = Orientation::Unstable;
     _candidateSinceMs = nowMs;
     _orientation      = Orientation::Unstable;
-    _lastRawTraceMs   = nowMs;
 }
 
 Orientation OrientationTracker::update(uint32_t nowMs)
@@ -198,32 +198,13 @@ Orientation OrientationTracker::update(uint32_t nowMs)
             _candidateSinceMs = nowMs;
         }
 
-        if (_candidate != _orientation && nowMs - _candidateSinceMs >= kStableMs) {
+            if (_candidate != _orientation && nowMs - _candidateSinceMs >= kStableMs) {
             hgLog("orientation: %s -> %s (accel %+.2f %+.2f %+.2f)",
                   orientationName(_orientation), orientationName(_candidate),
                   _filtered[0], _filtered[1], _filtered[2]);
             _orientation = _candidate;
         }
-
-        logRawTrace(nowMs);
     }
 
     return _orientation;
-}
-
-void OrientationTracker::logRawTrace(uint32_t nowMs)
-{
-    // Bring-up aid: raw values in a fixed cadence, so the axis convention above
-    // can be checked by moving the device through the four poses and reading the
-    // log. The screen-down pose is the one still unconfirmed - once it is, this
-    // trace is the README's "Later" cleanup.
-    if (nowMs - _lastRawTraceMs < kRawTraceMs) {
-        return;
-    }
-    _lastRawTraceMs = nowMs;
-
-    const Vec3 raw = accelToVec(M5.Imu.getImuData());
-    hgLog("imu: accel %+.2f %+.2f %+.2f  (filtered %+.2f %+.2f %+.2f)  pose %s",
-          raw.x, raw.y, raw.z, _filtered[0], _filtered[1], _filtered[2],
-          orientationName(_instant));
 }

@@ -25,7 +25,6 @@ constexpr uint16_t kTextDim    = rgb565(116, 124, 134);
 constexpr uint16_t kAccent     = rgb565(255, 196, 84);
 constexpr uint16_t kCursorFill = rgb565(42, 48, 56);
 constexpr uint16_t kRule       = rgb565(64, 70, 78);
-constexpr uint16_t kError      = rgb565(240, 80, 80);
 
 }  // namespace theme
 

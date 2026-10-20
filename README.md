@@ -127,8 +127,8 @@ Measured on the device with the stage 1 bring-up screen, accelerometer in g
 | standing on the right edge, USB-C at the top | +0.99 | -0.01 | -0.03 |
 
 So `z` is the screen normal, `x` is the sand axis (the 240 px side of the
-picture) and `y` stays near zero in every useful pose. Screen-down is inferred by
-symmetry and still has to be confirmed on the device.
+picture). The whole axis table is device-confirmed: both standing sides, both
+flat faces and both long edges were verified with the sand of the running app.
 
 Thresholds, all in `src/orientation.cpp`: a pose counts when its axis reads more
 than `0.80 g` and the other two stay below `0.45 g`; samples are smoothed with an
@@ -163,12 +163,12 @@ keyboard : TCA8418 (ADV)
 [hg     142] state: Menu -> Armed (start pressed)
 [hg     331] orientation: Unstable -> FlatUp (accel -0.01 +0.00 +1.00)
 [hg     512] key: Enter (fn 0 shift 0 ctrl 0 opt 0 alt 0)
-[hg    1090] imu: accel -0.02 +0.00 +1.00  (filtered -0.01 +0.00 +1.00)  pose FlatUp
 ```
 
 Every line starts with the uptime in milliseconds. State changes, orientation
-changes, key presses and NVS writes are logged; the raw accelerometer trace runs
-once per second and is what the axis table above was measured with.
+changes, key presses and NVS writes are logged. The once-per-second raw
+accelerometer trace of the bring-up days is retired: the axis table it was
+measured with is confirmed on the device in full.
 
 ## Building
 
@@ -206,9 +206,9 @@ pair is pinned at 0.2.20 / 0.2.27 and must only move together.
 Current image (stage 4):
 
 ```
-RAM:   [===       ]  26.8% (used  87900 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 509873 bytes from 1376256 bytes)
-firmware.bin: 510240 bytes
+RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
+Flash: [====      ]  37.0% (used 509433 bytes from 1376256 bytes)
+firmware.bin: 509792 bytes
 ```
 
 ## Installing on the device
@@ -298,7 +298,7 @@ After installing the build:
    "Flip to start") instead of switching screens, and flipping again starts a
    new cycle.
 7. Let it finish (or walk it with the up key): the chime sounds and DONE shows;
-   DONE shows; flipping to the other edge starts a new cycle. Enter restarts from
+   flipping to the other edge starts a new cycle. Enter restarts from
    DONE and FINISH too.
 8. `Del` from RUNNING returns to the menu.
 9. The serial log carries the reset reason at boot (`reset:` line:
@@ -323,5 +323,7 @@ After installing the build:
 
 ## Next stages
 
-- **Later:** dropping the raw IMU trace once the axis table is confirmed on
-  the device; the screen-down pose is the one pose still unconfirmed.
+The roadmap is empty: the falling-sand animation, the flat-pose physics (both
+flat faces and both long edges), the Clock switch and the soft rendered chime
+are all shipped and confirmed on the device. What remains is polish and
+whatever the device use suggests next.

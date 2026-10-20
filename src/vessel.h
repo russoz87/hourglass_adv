@@ -7,8 +7,8 @@
  * Coordinates are those of the portrait frame (135 x 240), the frame the big
  * hourglass is drawn in.
  *
- * stage 3 note: the shape is a placeholder for a pair of trapezoid bulbs - two
- * straight walls either side of an 8 px neck. The simulation only needs the mask
+ * The shape is a pair of trapezoid bulbs - two straight walls either side of an
+ * 8 px neck. The simulation only needs the mask
  * the shape cuts out of the grid, so a rounder vessel would be a change here.
  */
 #pragma once
@@ -30,9 +30,8 @@ struct Vessel
 constexpr Vessel kPortraitVessel = {67, 50, 46, 124, 204, 4};
 
 // Half width of the inside of the vessel at a given y, in pixels. Row y is
-// drawn as the run [centerX - halfWidthAt(y), centerX + halfWidthAt(y)).
-// Same arithmetic as the stage 2 drawing, so the glass that is drawn and the
-// grid the sand lives in have the same edge.
+// drawn as the run [centerX - halfWidthAt(y), centerX + halfWidthAt(y)), so
+// the glass that is drawn and the grid the sand lives in have the same edge.
 inline int16_t halfWidthAt(const Vessel& vessel, int16_t y)
 {
     if (y <= vessel.neck) {

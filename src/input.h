@@ -16,11 +16,9 @@
  *     shift/ctrl flag cannot turn '1' into '!' or 's' into 'S'.
  *
  * The modifier flags are kept for the serial log only; no action depends on
- * them.
- *
- * TODO verify on device: that ; . , / are physically the keys with the arrow
- * glyphs, and that `del` is comfortable as back. The key log line prints what
- * was pressed, so this is a one-minute check.
+ * them. The mapping is device-verified in everyday use; the key log line
+ * still prints exactly what was pressed, so a regression surfaces as a
+ * logged surprise.
  */
 #pragma once
 

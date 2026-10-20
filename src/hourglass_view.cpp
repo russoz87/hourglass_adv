@@ -8,8 +8,8 @@
 namespace {
 
 // Rotation of the portrait frame. Standing on one short edge or the other, one
-// of the two portrait rotations shows the picture the right way up.
-// TODO verify on device: if a side shows the picture upside down, swap these.
+// of the two portrait rotations shows the picture the right way up; verified
+// on the device with the sand of both edges (they run down in the drawing).
 constexpr uint8_t kRotationSideA = kRotationPortraitA;
 constexpr uint8_t kRotationSideB = kRotationPortraitB;
 
@@ -36,9 +36,9 @@ void drawOutline(lgfx::LovyanGFX& g, const Vessel& vessel, uint16_t color)
 // the top plate towards the neck, so the empty space grows from the top. In the
 // lower bulb the sand piles up from the bottom plate.
 //
-// This is the proportional fill of the stage 2 placeholder. The hourglass scenes
-// draw the simulation instead; this one is left for the settings preview, where
-// there is no room for a cellular automaton.
+// This is the simple proportional fill; the hourglass scenes draw the
+// simulation instead, and the settings preview has no room for a cellular
+// automaton.
 void fillUpperBulb(lgfx::LovyanGFX& g, const Vessel& vessel, float share, uint16_t color)
 {
     if (share <= 0.0f) {
