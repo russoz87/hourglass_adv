@@ -24,12 +24,11 @@
  * it is reset, when the device is turned over it is flipped, and while a screen
  * shows the hourglass it is stepped with the elapsed milliseconds.
  *
- * Two debug paths exist because the app has to be usable while the IMU pose is
- * off: Enter in ARMED skips the "place on side" step, and in RUNNING/PAUSED the
- * up/down keys move progress by 10 % per press. If the device is lying flat the
- * state machine pauses right after a forced start - that is what flat means -
- * and the arrow keys still move the sand, which is enough to walk through all
- * the screens without an IMU.
+ * One debug path keeps the app usable while the IMU pose is off: in
+ * RUNNING/PAUSED the up/down keys move progress by 10 % per press. Start the
+ * cycle on an edge once, then a flat device pauses itself - that is what flat
+ * means - and the arrow keys still move the sand, which is enough to walk
+ * through all the screens without an IMU.
  *
  * Build:   pio run
  * Install: copy .pio/build/cardputer-adv/firmware.bin to a microSD card and
@@ -328,12 +327,6 @@ void handleKey(const KeyPress& key)
         }
 
         case AppState::Armed:
-            if (key.enter || key.ok) {
-                // Debug path: start without the IMU. The frame keeps the side it
-                // has, so the picture is the same as after a real placement.
-                hgLog("debug: forced start without IMU");
-                startCycle(gSession.shownSide, "forced start");
-            }
             if (key.back) {
                 app::toMenu(gSession, "back");
             }
@@ -385,7 +378,7 @@ void render()
     switch (gSession.state) {
         case AppState::Menu:     ui_menu::drawMenu(gMenuCursor, gSettings); break;
         case AppState::Settings: ui_menu::drawSettings(gSettingsCursor, gSettings); break;
-        case AppState::Armed:    hourglass_view::drawArmed(gSession, color); break;
+        case AppState::Armed:    hourglass_view::drawArmed(gSession); break;
         case AppState::Running:  hourglass_view::drawRunning(gSession, gSim, color, false,
                                                              gSettings.clockOn); break;
         case AppState::Paused:   hourglass_view::drawRunning(gSession, gSim, color, true,

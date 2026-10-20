@@ -74,3 +74,13 @@ constexpr const char* paletteName(uint8_t idx)
 {
     return kPalettes[clampPaletteIndex(idx)].name;
 }
+
+namespace theme {
+
+// The glass around the sand does not follow the colour choice: the walls stay
+// the classic colour's dimmed variant and the plates stay copper, whatever the
+// sand of the run shows. The setting is the sand's pick and nothing else.
+constexpr uint16_t kGlass = dimmed(paletteColor(0), 45);
+constexpr uint16_t kPlate = paletteColor(3);
+
+}  // namespace theme

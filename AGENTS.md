@@ -130,9 +130,9 @@ Facts that keep code honest:
 
 ## Debugging without the IMU (flat on a desk)
 
-- `Enter` in ARMED starts the countdown. In RUNNING/PAUSED the up/down keys
-  move progress by 10 % per press - that walks run/done/beep/restart on a
-  flat device.
+- In RUNNING/PAUSED the up/down keys move progress by 10 % per press - that
+  walks run/done/beep/restart on a flat device. A cycle starts from a real
+  placement only; start one on an edge, then lay the device flat and walk it.
 - The serial log opens with the reset reason (`reset:` line: `power-on`,
   `brownout`, `panic`, `task watchdog`). After an unexpected restart that is
   the first thing to read - every log line is prefixed with uptime ms.

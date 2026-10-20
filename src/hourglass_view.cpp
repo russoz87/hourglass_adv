@@ -15,21 +15,24 @@ constexpr uint8_t kRotationSideB = kRotationPortraitB;
 
 // The outline: the glass wall per row, following the profile - so the drawing
 // stays on the shape whatever it is (straight trapezoids, the rounded bulbs,
-// anything row-wise the profile says). One pixel per wall keeps the sand that
-// leans on the glass visible under it, as the run-length drawing does.
-void drawOutline(lgfx::LovyanGFX& g, const Vessel& vessel, uint16_t color)
+// anything row-wise the profile says). The glass is fixed: the walls stay the
+// classic colour's dimmed variant and the plates stay copper - the colour
+// choice is the sand's and nothing else. One pixel per wall keeps the sand
+// that leans on the glass visible under it; the plates run five pixels, a
+// slightly heavier base than the glass above them.
+void drawOutline(lgfx::LovyanGFX& g, const Vessel& vessel)
 {
     for (int16_t y = vessel.top; y <= vessel.bottom; ++y) {
         const int16_t half = halfWidthAt(vessel, y);
-        g.drawPixel(vessel.centerX - half, y, color);
-        g.drawPixel(vessel.centerX + half - 1, y, color);
+        g.drawPixel(vessel.centerX - half, y, theme::kGlass);
+        g.drawPixel(vessel.centerX + half - 1, y, theme::kGlass);
     }
 
     // The plates the bulbs are sealed with.
-    g.fillRect(vessel.centerX - vessel.halfWidth - 2, vessel.top - 3, 2 * vessel.halfWidth + 4, 3,
-               color);
-    g.fillRect(vessel.centerX - vessel.halfWidth - 2, vessel.bottom, 2 * vessel.halfWidth + 4, 3,
-               color);
+    g.fillRect(vessel.centerX - vessel.halfWidth - 2, vessel.top - 5, 2 * vessel.halfWidth + 4, 5,
+               theme::kPlate);
+    g.fillRect(vessel.centerX - vessel.halfWidth - 2, vessel.bottom, 2 * vessel.halfWidth + 4, 5,
+               theme::kPlate);
 }
 
 // Fills the share of a bulb that holds sand. In the upper bulb the sand rests
@@ -84,9 +87,7 @@ void fillLowerBulb(lgfx::LovyanGFX& g, const Vessel& vessel, float share, uint16
 void drawHourglass(lgfx::LovyanGFX& g, const Vessel& vessel, float upperShare,
                    float lowerShare, uint16_t sand)
 {
-    const uint16_t outline = dimmed(sand, 45);
-
-    drawOutline(g, vessel, outline);
+    drawOutline(g, vessel);
     fillUpperBulb(g, vessel, upperShare, sand);
     fillLowerBulb(g, vessel, lowerShare, sand);
 }
@@ -136,10 +137,10 @@ void drawFinished(const sand::Simulation& sim, uint16_t sand, Orientation side, 
     g.setTextWrap(false);
     g.setTextDatum(textdatum_t::top_left);
 
-    drawCentered(g, title, kPortraitWidth / 2, 6, 3, sand);
+    drawCentered(g, title, kPortraitWidth / 2, 6, 3, theme::kAccent);
 
     drawSand(g, sim, sand);
-    drawOutline(g, kPortraitVessel, dimmed(sand, 45));
+    drawOutline(g, kPortraitVessel);
 
     drawCentered(g, hint, kPortraitWidth / 2, 212, 1, theme::kText);
     drawCentered(g, "Enter: new  Del: menu", kPortraitWidth / 2, 223, 1, theme::kTextDim);
@@ -167,7 +168,7 @@ void hourglass_view::drawPreview(lgfx::LovyanGFX& g, int centerX, int centerY, i
     drawHourglass(g, vessel, 1.0f - progress, progress, color);
 }
 
-void hourglass_view::drawArmed(const app::Session& session, uint16_t sand)
+void hourglass_view::drawArmed(const app::Session& session)
 {
     lgfx::LovyanGFX& g = canvas::beginFrame(Frame::Landscape, kRotationLandscape);
 
@@ -178,10 +179,9 @@ void hourglass_view::drawArmed(const app::Session& session, uint16_t sand)
     char interval[12];
     app::formatInterval(session.intervalIdx, interval, sizeof(interval));
 
-    drawCentered(g, interval, kLandscapeWidth / 2, 12, 3, sand);
+    drawCentered(g, interval, kLandscapeWidth / 2, 12, 3, theme::kAccent);
     drawCentered(g, "Place on side to start", kLandscapeWidth / 2, 48, 1, theme::kText);
-    drawCentered(g, "Enter: start without IMU", kLandscapeWidth / 2, 70, 1, theme::kTextDim);
-    drawCentered(g, "Del: menu", kLandscapeWidth / 2, 82, 1, theme::kTextDim);
+    drawCentered(g, "Del: menu", kLandscapeWidth / 2, 70, 1, theme::kTextDim);
 
     canvas::endFrame();
 }
@@ -215,7 +215,7 @@ void hourglass_view::drawRunning(const app::Session& session, const sand::Simula
     // inside the simulation, so the picture never jumps and the sand always
     // runs downwards in the frame that is drawn.
     drawSand(g, sim, sand);
-    drawOutline(g, kPortraitVessel, dimmed(sand, 45));
+    drawOutline(g, kPortraitVessel);
 
     if (paused) {
         drawCentered(g, "Paused", kPortraitWidth / 2, 218, 2, theme::kAccent);

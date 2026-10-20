@@ -25,8 +25,9 @@
 
 namespace hourglass_view {
 
-// Landscape: the selected interval and "place on side to start".
-void drawArmed(const app::Session& session, uint16_t sand);
+// Landscape: the selected interval and "place on side to start". The countdown
+// begins from a real placement only.
+void drawArmed(const app::Session& session);
 
 // Portrait: hourglass, mm:ss (unless hidden by setting) and, when paused, the
 // paused label. The sand comes from the simulation, which already holds the

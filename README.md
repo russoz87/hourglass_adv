@@ -32,7 +32,7 @@ proportional fill.
 | `src/sand.*` | falling-sand simulation: platform independent, host-tested; vertical flow and the lateral flat-settle |
 | `src/vessel.h` | the shape of the glass, shared by the drawing and the grid |
 | `src/canvas.*` | one sprite per frame, each pushed in a single transfer |
-| `src/palette.h` | the eight preset colours and the fixed UI colours |
+| `src/palette.h` | the eight preset colours, and the fixed theme colours: UI + the glass (classic walls, copper plates) |
 | `src/input.*` | key press events |
 | `src/log.*` | serial log format, uptime prefix |
 
@@ -57,8 +57,9 @@ on a switch row, toggles it. `Sound` turns the completion chime on or off,
 interval label stands in its place). Each change is written to NVS immediately.
 `Del` goes back to the menu.
 
-**ARMED** (landscape) - the selected interval, `Place on side to start`, and the
-debug hint.
+**ARMED** (landscape) - the selected interval and `Place on side to start`;
+`Del` goes back to the menu, and a real placement is the only way a countdown
+begins.
 
 **RUNNING** (portrait) - geometric hourglass, `mm:ss` (unless the Clock setting
 hides it) and the sand level; **PAUSED** is the same screen with a `Paused`
@@ -144,11 +145,11 @@ pile slides across the picture toward the wall the device rests on
 (device-verified; the first derived mapping ran the pile to the opposite
 wall, which pinned down the triad's never-measured `y` sign).
 
-### Debug paths (no IMU needed)
+### Debug path (no IMU needed)
 
-- `Enter` in ARMED starts the countdown without waiting for a side.
 - In RUNNING/PAUSED the up/down keys move progress by 10 % per press, which walks
-  the whole flow - running, done, beep, restart - on a flat device.
+  the whole flow - running, done, beep, restart - on a flat device. Start a
+  cycle on an edge once, then lay the device flat and walk it from there.
 
 ### Serial log
 
@@ -210,8 +211,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 508953 bytes from 1376256 bytes)
-firmware.bin: 509312 bytes
+Flash: [====      ]  37.0% (used 508749 bytes from 1376256 bytes)
+firmware.bin: 509120 bytes
 ```
 
 ## Installing on the device
