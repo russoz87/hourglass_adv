@@ -7,7 +7,7 @@
  *
  * The grid covers the inside of the drawn portrait vessel, one cell per pixel
  * (100 x 159 cells). A cell holds at most one grain; `kGrains` grains are about
- * 72 % of the upper bulb's area, which fills it to ~85 % of its height.
+ * 80 % of the upper bulb's area, which fills it to ~85 % of its height.
  *
  * Three mechanisms:
  *
@@ -75,26 +75,27 @@ constexpr int kCellPx = 1;
 constexpr int kGridWidth  = 2 * kPortraitVessel.halfWidth;                      // 100
 constexpr int kGridHeight = kPortraitVessel.bottom - kPortraitVessel.top + 1;   // 159
 
-// Row of the throat. Grains in this row and below it have run through the neck.
-constexpr int kNeckRow = kPortraitVessel.neck - kPortraitVessel.top;            // 78
+// Row of the throat. Grains in this row and below it have run through the neck:
+// the throat line of the profile sits on the exact mirror row of the grid, so
+// the neck pipe is symmetric and the crossing counts once, right at its top.
+constexpr int kNeckRow = kPortraitVessel.neck - kPortraitVessel.top;            // 79
 
 // Where the grid sits in the portrait frame: cell (col, row) is the pixel
 // (kOriginX + col, kOriginY + row).
 constexpr int kOriginX = kPortraitVessel.centerX - kPortraitVessel.halfWidth;   // 17
 constexpr int kOriginY = kPortraitVessel.top;                                  // 46
 
-// Number of grains. Upper bulb: 4190 cells, so 3000 fills it to y = 58, that is
-// 85 % of its height; the lower bulb is 4288 cells wide (a little more, the two
-// bulbs are 78 and 80 rows tall) and ends up at the same level.
-constexpr int kGrains = 3000;
+// Number of grains. Upper bulb: 6242 cells, so 5000 fills it to ~85 % of its
+// height (69 of the 79 bulb rows); the lower bulb is its exact twin - the
+// throat line sits on the grid's mirror row - and holds the same.
+constexpr int kGrains = 5000;
 
 // Half width of the grid at a grid row. The grid is the part of the vessel that
 // survives a flip: the narrower of a row and the row it is reflected onto. The
-// upper bulb is 78 rows tall and the lower one 80, so at the same distance from
-// the neck the lower bulb is up to two pixels wider; taking the narrower one
-// means a flip can never push a grain through the glass and leave it stuck
-// against a wall. The gap that opens at the wall is at most two pixels and sits
-// under the drawn outline (see the constructor in sand.cpp).
+// profile is symmetric about the throat line, so the two agree per row and the
+// narrowing is exact - a flip can never push a grain through the glass and
+// leave it stuck against a wall. The function stays the guard it always was
+// for a future asymmetric profile.
 int halfWidthOfRow(int row);
 
 class Simulation

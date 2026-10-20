@@ -13,16 +13,17 @@ namespace {
 constexpr uint8_t kRotationSideA = kRotationPortraitA;
 constexpr uint8_t kRotationSideB = kRotationPortraitB;
 
+// The outline: the glass wall per row, following the profile - so the drawing
+// stays on the shape whatever it is (straight trapezoids, the rounded bulbs,
+// anything row-wise the profile says). One pixel per wall keeps the sand that
+// leans on the glass visible under it, as the run-length drawing does.
 void drawOutline(lgfx::LovyanGFX& g, const Vessel& vessel, uint16_t color)
 {
-    g.drawLine(vessel.centerX - vessel.halfWidth, vessel.top, vessel.centerX - vessel.neckHalfWidth,
-               vessel.neck, color);
-    g.drawLine(vessel.centerX + vessel.halfWidth, vessel.top, vessel.centerX + vessel.neckHalfWidth,
-               vessel.neck, color);
-    g.drawLine(vessel.centerX - vessel.neckHalfWidth, vessel.neck, vessel.centerX - vessel.halfWidth,
-               vessel.bottom, color);
-    g.drawLine(vessel.centerX + vessel.neckHalfWidth, vessel.neck, vessel.centerX + vessel.halfWidth,
-               vessel.bottom, color);
+    for (int16_t y = vessel.top; y <= vessel.bottom; ++y) {
+        const int16_t half = halfWidthAt(vessel, y);
+        g.drawPixel(vessel.centerX - half, y, color);
+        g.drawPixel(vessel.centerX + half - 1, y, color);
+    }
 
     // The plates the bulbs are sealed with.
     g.fillRect(vessel.centerX - vessel.halfWidth - 2, vessel.top - 3, 2 * vessel.halfWidth + 4, 3,

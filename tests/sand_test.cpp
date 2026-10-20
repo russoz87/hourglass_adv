@@ -132,6 +132,29 @@ void testGeometry()
     check(upperArea >= sand::kGrains, "the upper bulb holds every grain");
     std::printf("      upper bulb %d cells, %d grains\n", upperArea, sand::kGrains);
 
+    // The initial fill has to reach ~85 percent of the bulb zone, or the
+    // picture starts visibly half-empty. The sand is filled from the throat
+    // line upwards, so the highest filled row tells the level.
+    sand::Simulation fillSim;
+    fillSim.reset(60000);
+    int topFilled = -1;
+    for (int r = 0; r < sand::kNeckRow && topFilled < 0; ++r) {
+        int any = 0;
+        for (int c = 0; c < sand::kGridWidth && !any; ++c) {
+            any = fillSim.cell(c, r) ? 1 : 0;
+        }
+        if (any) {
+            topFilled = r;
+        }
+    }
+    const int fillRows = sand::kNeckRow - topFilled;
+    const float fillShare =
+        static_cast<float>(fillRows) / static_cast<float>(sand::kNeckRow);
+    char detail[96];
+    std::snprintf(detail, sizeof(detail), "(%d of %d rows above the throat, %.0f %%)",
+                  fillRows, sand::kNeckRow, fillShare * 100.0f);
+    check(fillShare >= 0.75f && fillShare <= 0.92f, "the bulge fills to ~85 percent", detail);
+
     // The flip is a point reflection, so every grain has to land inside the mask
     // of the row it lands in. halfWidthOfRow narrows the grid to the part of the
     // vessel that survives the rotation, and this is the check that it worked.
@@ -239,8 +262,8 @@ void testValveRate()
 
     char detail[96];
     std::snprintf(detail, sizeof(detail), "(%d expected)", expected);
-    check(std::abs(fast - expected) <= 6, "5 s of a 1 min cycle passes ~250 grains", detail);
-    check(slow >= 4 && slow <= 14, "5 s of a 30 min cycle passes ~8 grains");
+    check(std::abs(fast - expected) <= 8, "5 s of a 1 min cycle passes its rate's share", detail);
+    check(slow >= 4 && slow <= 18, "5 s of a 30 min cycle passes only a trickle");
     std::printf("      1 min: %d grains, 30 min: %d grains\n", fast, slow);
 }
 
@@ -266,7 +289,7 @@ void testStoppedTimer()
     // The valve is off without flow. What is left is the governor's correction
     // of a grain or two, which is what makes the arrow keys work in PAUSED.
     check(std::abs(held - frozen) <= 2, "the sand holds still while the timer does", detail);
-    check(held <= 1500, "the sand never runs ahead of the frozen clock");
+    check(held <= sand::kGrains / 2, "the sand never runs ahead of the frozen clock");
     check(countGrains(sim) == sand::kGrains, "grains are conserved");
     check(sim.settled(), "the picture comes to rest");
 }

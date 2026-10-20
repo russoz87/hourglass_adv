@@ -9,7 +9,10 @@ over reverses it, and laying it flat pauses it - like a real hourglass.
 
 The app runs: menu and settings (including the `Sound` and `Clock` switches), NVS,
 timer state machine, IMU orientation, the soft rendered completion chime, and the
-falling-sand animation. The sand is a cellular
+falling-sand animation. The vessel itself is the classic rounded-bulb hourglass
+(`src/vessel.h`: quarter-ellipse walls flaring out of a short neck pipe); the whole
+shape is one function (`halfWidthAt`), which the drawing, the grid mask and the
+preview all share. The sand is a cellular
 automaton (`src/sand.h`): the neck is a valve that drips the load over exactly
 the interval, a flip rotates the grid instead of rebuilding the scene, so
 the picture never jumps, and a flat pose - a paused clock - settles the sand
@@ -207,8 +210,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 509433 bytes from 1376256 bytes)
-firmware.bin: 509792 bytes
+Flash: [====      ]  37.0% (used 508953 bytes from 1376256 bytes)
+firmware.bin: 509312 bytes
 ```
 
 ## Installing on the device
