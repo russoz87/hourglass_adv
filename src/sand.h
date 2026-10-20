@@ -15,6 +15,14 @@
  *              the two downward diagonals, else it stays. Rows are swept from
  *              the bottom up with the sweep direction drawn at random per row,
  *              so a pile has no preferred side.
+ *   repose   - a pile steeper than 45 degrees cannot hold: when straight-down
+ *              and both down-diagonals are occupied, but a side column is two
+ *              or more levels lower, the grain rolls off the slope and falls
+ *              there. This is what heals a lateral pile back into the standing
+ *              shape, and that is what makes every flat settle repeatable: the
+ *              slide always starts from a re-centered pile. A slope of exactly
+ *              one level per column is stable, so the mounds the stream builds
+ *              keep their shape.
  *   valve    - a token bucket on the neck. `kGrains / durationMs` grains may
  *              cross it per millisecond, so a 30 minute hourglass drips its
  *              3000 grains over 30 minutes and a 1 minute one over a minute.

@@ -86,6 +86,16 @@ lateral step never leaves its grid row, and the row is the boundary between
 the bulbs, so nothing crosses the neck while lying. Standing the device back
 on an edge returns to the standing physics and the clock.
 
+One repose rule makes the settle repeatable: a grain whose straight and
+diagonal falls are blocked but whose side column is two or more levels lower
+rolls off the slope (a steeper-than-45-degrees pile cannot hold; a one-level
+terrace is stable, so the stream's mounds keep their shape). This is what
+heals the wall-hugging pile of the previous slide back toward the center
+during the standing phases - only the narrowing funnel right at the neck
+keeps a lean, the glass itself stops the grains there. Without it, the second
+lie-down would find the pile already at the wall and nothing to move - the
+slide would have happened once and never again.
+
 The idle animation gate is direction aware: the pause first runs the standing
 physics until the stream has landed (the flat pose is reported only after the
 pose hold time), and then the gravity change re-arms the settle, so the lying
@@ -182,8 +192,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87900 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 509693 bytes from 1376256 bytes)
-firmware.bin: 510064 bytes
+Flash: [====      ]  37.0% (used 509813 bytes from 1376256 bytes)
+firmware.bin: 510176 bytes
 ```
 
 ## Installing on the device

@@ -557,12 +557,41 @@ void testFlatSettle()
           "screen down slides the sand to the right wall");
 
     // Back on its feet: the standing physics resumes and the clock runs again.
-    for (int i = 0; i < 40; ++i) {
+    for (int i = 0; i < 100; ++i) {
         sim.step(kFrameMs, clock.lowerShare(), clock.flowing(), sand::Gravity::Down);
         clock.advance(kFrameMs);
     }
     check(sim.grainsBelow() > belowFlat, "standing up resumes the countdown");
     check(countGrains(sim) == sand::kGrains, "resuming conserved the grains");
+
+    // THE repeatability contract: a standing phase erodes the cliff the slide
+    // left behind (the 45-degree repose), so the next lie-down slides from
+    // wherever the pile stood. The rows of the narrowing funnel near the neck
+    // may keep their wall lean - the glass itself stops them there - but the
+    // wide rows heal, and the slide is visibly repeated.
+    const double upperHealed = meanCol(sim, 0, sand::kNeckRow);
+    const double lowerHealed = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
+    const int belowHealed = sim.grainsBelow();
+
+    frames  = 0;
+    crossed = false;
+    do {
+        sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Left);
+        if (sim.grainsBelow() != belowHealed) {
+            crossed = true;
+        }
+        ++frames;
+    } while (!sim.settled(sand::Gravity::Left) && frames < 2000);
+    check(!crossed, "the healed pile keeps the neck sealed on the next slide");
+    const double upperSecond = meanCol(sim, 0, sand::kNeckRow);
+    const double lowerSecond = meanCol(sim, sand::kNeckRow, sand::kGridHeight);
+    check((upperHealed - upperSecond) >= 10.0 && (lowerHealed - lowerSecond) >= 10.0,
+          "the second lie-down slides again, from wherever the pile stood");
+    char detail2[96];
+    std::snprintf(detail2, sizeof(detail2),
+                  "(second slide: upper %.1f -> %.1f, lower %.1f -> %.1f)",
+                  upperHealed, upperSecond, lowerHealed, lowerSecond);
+    std::printf("      %s\n", detail2 + 1);
 }
 
 void benchmark()

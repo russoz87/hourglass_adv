@@ -370,6 +370,32 @@ bool sand::Simulation::tryFall(int row, int col)
         return true;
     }
 
+    // The repose rule: a slope steeper than 45 degrees cannot hold. When this
+    // grain is fully supported but a side column is two or more levels lower,
+    // it rolls off the edge and takes the one-cell drop in the next pass. The
+    // drop condition is what keeps a reposing terrace from roaming forever -
+    // a one-level step is a stable slope. Nothing here leaves the row, so the
+    // neck stays sealed, and on the bottom plate the grain is as low as the
+    // glass goes and never rolls.
+    const int belowRow = row + 1;
+    if (belowRow >= kGridHeight) {
+        return false;
+    }
+    for (int i = 0; i < 2; ++i) {
+        const bool left = (i == 0) == leftFirst;
+        const int  side = col + (left ? -1 : 1);
+        if (side < first || side > last || grain(row, side)) {
+            continue;
+        }
+        if (side < rowFirst(belowRow) || side > rowLast(belowRow) || grain(belowRow, side)) {
+            continue;
+        }
+
+        takeGrain(row, col);
+        putGrain(row, side);
+        return true;
+    }
+
     return false;
 }
 

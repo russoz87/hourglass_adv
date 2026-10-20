@@ -117,6 +117,11 @@ Facts that keep code honest:
   is what gets the lying pile moving; a paused hourglass drops the valve's
   leftover tokens, so the only level change a pause may still make is the
   governor reconciling a grain or two the clock had already counted.
+  Repeatability rests on the repose rule in `tryFall`: a grain resting on a
+  slope steeper than 45 degrees rolls off (a side column two or more levels
+  lower takes it). Without it the wall-hugging pile of the previous slide
+  would keep its shape through the standing phases and the next lie-down
+  would have nothing to slide.
 
 ## Debugging without the IMU (flat on a desk)
 
