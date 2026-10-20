@@ -31,7 +31,7 @@
  * through all the screens without an IMU.
  *
  * Build:   pio run
- * Install: copy .pio/build/cardputer-adv/firmware.bin to a microSD card and
+ * Install: copy build/hourglass.bin to a microSD card and
  *          install it from the Launcher SD menu - never flash over USB, that
  *          would overwrite the installed Launcher.
  */

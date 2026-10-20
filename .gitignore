@@ -16,6 +16,7 @@ compile_commands.json
 *.elf
 *.map
 
-# The installable .bin files are kept at the repo root, untracked: they are
-# per-build outputs, copy them to microSD instead (see README "Installing").
+# The delivered image (build/hourglass.bin) is a per-build output: copy it to
+# microSD instead (see README "Installing") - never commit it.
+build/
 *.bin

@@ -54,7 +54,7 @@ pio run            # single environment: cardputer-adv (the app)
 pio device monitor --baud 115200   # USB CDC is enabled on boot
 ```
 
-Artifact: `.pio/build/cardputer-adv/firmware.bin` - install it into the
+Artifact: `build/hourglass.bin` - install it into the
 device from the Launcher SD menu; never flash it over USB.
 
 Host tests (the sand simulation and the state machine are plain C++; the

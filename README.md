@@ -192,7 +192,8 @@ minutes).
 pio run                 # builds the default env: cardputer-adv
 ```
 
-The image ends up in `.pio/build/cardputer-adv/firmware.bin`.
+The image lands in `build/hourglass.bin` (scripts/copy_out.py copies it there
+after the build; PlatformIO's cache tree stays in `.pio/`).
 
 Pinned versions, all set in `platformio.ini` - they are the result of
 bisecting real device panics, not defaults:
@@ -220,7 +221,7 @@ Current image (stage 4):
 ```
 RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
 Flash: [====      ]  37.0% (used 508801 bytes from 1376256 bytes)
-firmware.bin: 509168 bytes
+hourglass.bin: 509168 bytes
 ```
 
 ## Installing on the device
@@ -235,11 +236,11 @@ esptool/PIO would overwrite Launcher, so:
 
 Install steps:
 
-1. `pio run` and take `.pio/build/cardputer-adv/firmware.bin`.
+1. `pio run` and take `build/hourglass.bin`.
 2. Copy that file to the microSD card (folder of your choice, e.g. `/apps`).
 3. Put the card into the device (FAT32, MBR, 32 GB or less) and boot into
    Launcher.
-4. Open the SD-card file menu, select `firmware.bin` and install it.
+4. Open the SD-card file menu, select `hourglass.bin` and install it.
 5. Reboot: the installed Hourglass app starts by itself. To go back into
    Launcher, press **Enter** (`Sel`) on the boot screen instead of letting the
    app start.
@@ -249,7 +250,7 @@ Install steps:
 Launcher writes an installed app into a single slot at `0x10000` of
 `0x150000` bytes (its `custom_8Mb.csv`, mirrored in `partitions.csv`).
 `board_upload.maximum_size` is set to that size, so `pio run` fails instead of
-producing a binary that cannot be installed. Stage 4 uses 509669 of 1376256
+producing a binary that cannot be installed. Stage 4 uses 508801 of 1376256
 bytes, leaving ~850 kB.
 
 ## Serial monitor
@@ -267,7 +268,9 @@ appears on the USB-C port the device is already connected through.
 ```
 platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
+build/hourglass.bin         the install image, written by the build (git-ignored)
 scripts/guard_usb_flash.py  blocks upload/erase targets
+scripts/copy_out.py         copies the built image to build/hourglass.bin
 src/                        application modules, see the table above
 tests/                      host tests, plain C++ (g++, no Arduino):
                             g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp

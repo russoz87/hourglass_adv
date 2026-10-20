@@ -5,7 +5,8 @@ installed as a Launcher app from the microSD card. A PlatformIO upload writes
 bootloader, partition table and firmware with esptool, which would overwrite
 that Launcher installation, so the uploading targets are blocked here.
 
-Build with `pio run` and install firmware.bin through the Launcher SD menu.
+Build with `pio run` and install build/hourglass.bin through the Launcher SD
+menu.
 """
 
 Import("env")  # noqa: F821 - provided by PlatformIO
@@ -19,6 +20,6 @@ if requested:
     raise SystemExit(
         "[hourglass] refusing '%s': flashing over USB would erase the Launcher "
         "installation on the device.\n"
-        "            Run `pio run` and install firmware.bin from the Launcher SD "
-        "menu instead." % ", ".join(requested)
+        "            Run `pio run` and install build/hourglass.bin from the "
+        "Launcher SD menu instead." % ", ".join(requested)
     )
