@@ -534,14 +534,31 @@ void loop()
     // slides across the picture, toward the lower wall of its own bulb. Which
     // of the two side walls that is cannot be read from a flat pose (there the
     // gravity points straight into the screen), so the convention is flat -
-    // screen up settles left, screen down settles right. Unknown or finished
-    // poses keep the vertical physics.
+    // screen up settles left, screen down settles right, and the tilted/in
+    // motion poses keep the vertical physics.
+    //
+    // On a LONG EDGE the hourglass lies on its side for real: the gravity runs
+    // across the picture along the device y axis, and the picture's horizontal
+    // axis IS that y axis. With the frame drawn for SideA the picture-right is
+    // device -y (derived from the measured axis table: picture-down is +x,
+    // out-of-screen is +z, right-hand cross), so the sign of y reads straight
+    // off the pose; the SideB frame is the A frame rotated 180 degrees, which
+    // flips the sense. Derived, like every rotation here - still awaiting its
+    // device check for the y direction (y stayed ~0 in every earlier pose).
     sand::Gravity gravity = sand::Gravity::Down;
     if (gSession.state == AppState::Paused) {
         if (gLastOrientation == Orientation::FlatUp) {
             gravity = sand::Gravity::Left;
         } else if (gLastOrientation == Orientation::FlatDown) {
             gravity = sand::Gravity::Right;
+        } else if (gLastOrientation == Orientation::LongYUp ||
+                   gLastOrientation == Orientation::LongYDown) {
+            const bool yUp = gLastOrientation == Orientation::LongYUp;
+            if (gSession.shownSide == Orientation::SideB) {
+                gravity = yUp ? sand::Gravity::Left : sand::Gravity::Right;
+            } else {
+                gravity = yUp ? sand::Gravity::Right : sand::Gravity::Left;
+            }
         }
     }
 

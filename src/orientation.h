@@ -16,11 +16,13 @@
 
 enum class Orientation : uint8_t
 {
-    Unstable,  // moving, or standing on a long edge: no sand axis
+    Unstable,  // moving, tilted, or resting between poses: no usable axis
     FlatUp,    // screen facing up
     FlatDown,  // screen facing down
     SideA,     // standing on one short edge
     SideB,     // standing on the other short edge
+    LongYUp,   // resting on a long edge, device +y up: the glass lies on its side
+    LongYDown, // resting on a long edge, device +y down: the other long edge
 };
 
 const char* orientationName(Orientation orientation);

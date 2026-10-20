@@ -86,6 +86,14 @@ lateral step never leaves its grid row, and the row is the boundary between
 the bulbs, so nothing crosses the neck while lying. Standing the device back
 on an edge returns to the standing physics and the clock.
 
+The long-edge rest gets the same lying physics - that is the pose where the
+glass truly lies on its side. The gravity now has a real in-picture direction:
+the picture's horizontal axis is the device y axis, so the pose sign plus the
+frame tell which picture wall is lower (`LongYUp` slides right in a SideA
+frame and left in a SideB frame, `LongYDown` the other way round). The
+mapping is derived from the measured axis convention and marked for the
+device check in case the y direction reads inverted on the real hardware.
+
 One repose rule makes the settle repeatable: a grain whose straight and
 diagonal falls are blocked but whose side column is two or more levels lower
 rolls off the slope (a steeper-than-45-degrees pile cannot hold; a one-level
@@ -123,8 +131,14 @@ Thresholds, all in `src/orientation.cpp`: a pose counts when its axis reads more
 than `0.80 g` and the other two stay below `0.45 g`; samples are smoothed with an
 80 ms time constant; a pose is reported only after holding for 400 ms; while the
 gyroscope reads more than 40 dps in total the stability timer restarts, so a flip
-is not accepted halfway through. Standing on a long edge has no sand axis and is
-reported as `Unstable`, which stops the sand like a flat pose does.
+is not accepted halfway through. Resting on a long edge reads as dominant `y`
+and is reported as `LongYUp` / `LongYDown` - the hourglass lying on its side:
+the sand axis lies horizontal, the pause keeps the sand animating, and the
+pile slides across the picture. Which of the two long edges is which maps to
+the picture side through the sign of `y` and the drawn frame (see the flat
+section of "Timer model"); the mapping is derived from the measured axis table
+above and still awaits its own device check - `y` stayed ~0 in every earlier
+measurement.
 
 ### Debug paths (no IMU needed)
 
@@ -192,8 +206,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87900 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 509813 bytes from 1376256 bytes)
-firmware.bin: 510176 bytes
+Flash: [====      ]  37.0% (used 509873 bytes from 1376256 bytes)
+firmware.bin: 510240 bytes
 ```
 
 ## Installing on the device
@@ -299,6 +313,12 @@ After installing the build:
     right), nothing crosses the neck and `mm:ss` freezes with it. Laying it
     the other face down slides the pile to the other wall; standing it back on
     an edge resumes the countdown and the old pile shape falls into place.
+13. Rest the device on one of its long edges while counting down: the pause is
+    the lying-hourglass pose, the pile slides across the picture on both edges
+    (the direction depends on the edge and on the last standing side). The y
+    direction is derived, not yet measured - if a long edge slides the pile to
+    the upper-looking wall, the sign in the `LongY` branch of the gravity pick
+    in `main.cpp` is the knob.
 
 ## Next stages
 

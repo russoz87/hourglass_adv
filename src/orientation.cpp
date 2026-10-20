@@ -108,9 +108,12 @@ Orientation classify(const Vec3& accel)
             return sign > 0.0f ? Orientation::SideB : Orientation::SideA;
 
         default:
-            // Standing on a long edge: the sand axis is horizontal, which is not
-            // an hourglass pose. Reported as unstable so nothing moves.
-            return Orientation::Unstable;
+            // Standing on a long edge: the short axis is vertical and the long
+            // sand axis lies horizontal - the hourglass is lying ON ITS SIDE.
+            // The sign of y says which of the two edges it rests on; both get
+            // the lying-hourglass physics (the lateral settle) in the app, so
+            // they are reported instead of folding into Unstable.
+            return sign > 0.0f ? Orientation::LongYUp : Orientation::LongYDown;
     }
 }
 
@@ -119,11 +122,13 @@ Orientation classify(const Vec3& accel)
 const char* orientationName(Orientation orientation)
 {
     switch (orientation) {
-        case Orientation::FlatUp:   return "FlatUp";
-        case Orientation::FlatDown: return "FlatDown";
-        case Orientation::SideA:    return "SideA";
-        case Orientation::SideB:    return "SideB";
-        case Orientation::Unstable: break;
+        case Orientation::FlatUp:    return "FlatUp";
+        case Orientation::FlatDown:  return "FlatDown";
+        case Orientation::SideA:     return "SideA";
+        case Orientation::SideB:     return "SideB";
+        case Orientation::LongYUp:   return "LongYUp";
+        case Orientation::LongYDown: return "LongYDown";
+        case Orientation::Unstable:  break;
     }
     return "Unstable";
 }
