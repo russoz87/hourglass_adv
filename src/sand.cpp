@@ -158,8 +158,7 @@ void sand::Simulation::flip()
     _lastGravity = Gravity::Down;
 }
 
-void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity,
-                            bool byClock)
+void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity)
 {
     if (dtMs == 0) {
         return;
@@ -176,23 +175,19 @@ void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravi
 
     // A flat pose holds the clock: the share, the valve target and the valve
     // itself stand still. Only the standing hourglass (Gravity::Down) runs the
-    // valve and lets the governor act - and the governor belongs to the timed
-    // mode: with `byClock` false the sand rules itself, so whatever the lying
-    // leak did to the level stays as it is.
+    // valve and lets the governor act.
     const bool standing = gravity == Gravity::Down;
 
     if (standing) {
-        if (byClock) {
-            // The timer is the truth: round(lowerShare * kGrains) grains
-            // belong below the throat right now.
-            int target = static_cast<int>(lowerShare * static_cast<float>(kGrains) + 0.5f);
-            if (target < 0) {
-                target = 0;
-            } else if (target > kGrains) {
-                target = kGrains;
-            }
-            _target = target;
+        // The timer is the truth: round(lowerShare * kGrains) grains belong
+        // below the throat right now.
+        int target = static_cast<int>(lowerShare * static_cast<float>(kGrains) + 0.5f);
+        if (target < 0) {
+            target = 0;
+        } else if (target > kGrains) {
+            target = kGrains;
         }
+        _target = target;
 
         if (!flowing) {
             // A paused hourglass must not drain the valve's leftover bucket:
@@ -221,12 +216,12 @@ void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravi
                 _tokens = kBucketGrains;
             }
         }
-        if (dir == 0 ? settleOneStep() : settleLateralStep(dir, byClock)) {
+        if (dir == 0 ? settleOneStep() : settleLateralStep(dir)) {
             moved = true;
         }
     }
 
-    if (standing && byClock && govern()) {
+    if (standing && govern()) {
         moved = true;
     }
 
@@ -265,7 +260,7 @@ bool sand::Simulation::settleOneStep()
     return moved;
 }
 
-bool sand::Simulation::settleLateralStep(int dir, bool byClock)
+bool sand::Simulation::settleLateralStep(int dir)
 {
     bool moved = false;
 
@@ -281,7 +276,7 @@ bool sand::Simulation::settleLateralStep(int dir, bool byClock)
             if (_rowCount[r] == 0 || !grain(r, c)) {
                 continue;
             }
-            if (tryFallLateral(r, c, dir, byClock)) {
+            if (tryFallLateral(r, c, dir)) {
                 moved = true;
             }
         }
@@ -290,7 +285,7 @@ bool sand::Simulation::settleLateralStep(int dir, bool byClock)
     return moved;
 }
 
-bool sand::Simulation::tryFallLateral(int row, int col, int dir, bool byClock)
+bool sand::Simulation::tryFallLateral(int row, int col, int dir)
 {
     const int first = rowFirst(row);
     const int last  = rowLast(row);
@@ -300,11 +295,9 @@ bool sand::Simulation::tryFallLateral(int row, int col, int dir, bool byClock)
 
     // Straight, toward the wall - then the two spill diagonals, in a random
     // order. The straight slide never leaves the row; the diagonals may step
-    // to the adjacent row for the slope's spill, but crossing the neck line is
-    // reserved for the analog mode (`byClock` false), where the sand rules
-    // itself and a lying hourglass drains on its own - the counters follow
-    // every crossing, so the real end of the sand stays measurable even
-    // through the leak.
+    // to the adjacent row for the slope's spill, but the check below forbids
+    // them at the neck line, so the bulbs stay separated and nothing crosses
+    // the neck sideways.
     const int next = col + dir;
     if (next >= first && next <= last && !grain(row, next)) {
         takeGrain(row, col);
@@ -318,8 +311,10 @@ bool sand::Simulation::tryFallLateral(int row, int col, int dir, bool byClock)
         if (r < 0 || r >= kGridHeight) {
             continue;
         }
-        const bool crossingLine = (r < kNeckRow) != (row < kNeckRow);
-        if (crossingLine && byClock) {
+        // A spill diagonal never carries the grain across the neck line: the
+        // rows below it belong to the other bulb, and the lateral slide has
+        // no valve whose tokens could pay for their crossing.
+        if ((r < kNeckRow) != (row < kNeckRow)) {
             continue;
         }
         if (next < rowFirst(r) || next > rowLast(r) || grain(r, next)) {
@@ -328,13 +323,6 @@ bool sand::Simulation::tryFallLateral(int row, int col, int dir, bool byClock)
 
         takeGrain(row, col);
         putGrain(r, next);
-        if (crossingLine) {
-            if (r >= kNeckRow) {
-                ++_below;  // through the neck, into the lower bulb
-            } else {
-                --_below;  // back up into the upper one
-            }
-        }
         return true;
     }
 

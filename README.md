@@ -111,19 +111,6 @@ keeps a lean, the glass itself stops the grains there. Without it, the second
 lie-down would find the pile already at the wall and nothing to move - the
 slide would have happened once and never again.
 
-**The Clock switch is two physics modes.** On (default, the timed mode) the
-neck line is sealed: nothing crosses it sideways, the governor holds the level
-against the timer, and DONE and the chime come from the countdown reaching its
-end - which is what the visible `mm:ss` has to agree with. Off (the analog
-mode, no digits are shown anyway) the hourglass rules itself: a lying pile
-keeps leaking through the neck the way real glass drains from a lying bottle,
-the grains that slide across are counted, and the level drifts ahead of the
-frozen clock at will. DONE and the chime then come when the last grain
-actually lands below the throat - even mid-pause, with the device still lying
-on its side - and a fully rewound glass with an empty throat is a real FINISH.
-The governor rests in the analog mode: nothing drags the sand back into line,
-because the sand is the line.
-
 The lateral diagonals never carry a grain across the neck line: a spill step
 to the adjacent row is forbidden when the two rows sit on opposite sides of
 the throat, so the bulbs stay separated whatever the pose does. (The first
@@ -232,8 +219,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 508985 bytes from 1376256 bytes)
-firmware.bin: 509344 bytes
+Flash: [====      ]  37.0% (used 508801 bytes from 1376256 bytes)
+firmware.bin: 509168 bytes
 ```
 
 ## Installing on the device
@@ -332,12 +319,8 @@ After installing the build:
 10. In the settings, switching Sound from Off to On plays the signal at once -
    a two-second way to check the audio path without waiting out an interval.
 11. In the settings, switching Clock to Off hides the mm:ss on the countdown
-    screens (the interval label takes its place) and turns on the analog
-    hourglass: a lying/edge pause keeps draining the sand through the neck
-    (nothing freezes), and DONE with the chime come when the last grain really
-    lands below the throat - not when the frozen clock does. Switching it back
-    On restores the synchronized countdown. Both choices survive a power
-    cycle (`nvs:` line).
+    screens (the interval label takes its place); switching it back On restores
+    the readout. The choice survives a power cycle (`nvs:` line).
 12. While counting down, lay the device flat: `Paused` shows and the sand of
     both bulbs slides toward one side wall (screen up: left, screen down:
     right), nothing crosses the neck and `mm:ss` freezes with it. Laying it
