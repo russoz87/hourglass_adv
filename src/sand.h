@@ -164,9 +164,9 @@ private:
     void  takeGrain(int row, int col);
 
     void fillUpperBulb();
-    bool settleOneStep();
+    bool settleOneStep(bool byClock);
     bool settleLateralStep(int dir, bool byClock);
-    bool tryFall(int row, int col);
+    bool tryFall(int row, int col, bool byClock);
     bool tryFallLateral(int row, int col, int dir, bool byClock);
     bool govern();
     bool releaseToNeck();

@@ -221,7 +221,7 @@ void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravi
                 _tokens = kBucketGrains;
             }
         }
-        if (dir == 0 ? settleOneStep() : settleLateralStep(dir, byClock)) {
+        if (dir == 0 ? settleOneStep(byClock) : settleLateralStep(dir, byClock)) {
             moved = true;
         }
     }
@@ -233,7 +233,7 @@ void sand::Simulation::step(uint32_t dtMs, float lowerShare, bool flowing, Gravi
     _settled = !moved;
 }
 
-bool sand::Simulation::settleOneStep()
+bool sand::Simulation::settleOneStep(bool byClock)
 {
     bool moved = false;
 
@@ -256,7 +256,7 @@ bool sand::Simulation::settleOneStep()
             if (!grain(r, c)) {
                 continue;
             }
-            if (tryFall(r, c)) {
+            if (tryFall(r, c, byClock)) {
                 moved = true;
             }
         }
@@ -341,7 +341,7 @@ bool sand::Simulation::tryFallLateral(int row, int col, int dir, bool byClock)
     return false;
 }
 
-bool sand::Simulation::tryFall(int row, int col)
+bool sand::Simulation::tryFall(int row, int col, bool byClock)
 {
     const int next = row + 1;
     if (next >= kGridHeight) {
@@ -349,12 +349,15 @@ bool sand::Simulation::tryFall(int row, int col)
     }
 
     // The neck row is the valve: a grain may only enter it by spending a token,
-    // the tokens are the interval's rate, and the timer has to say that the
-    // grain belongs there. The last condition is what keeps the sand from
-    // overtaking the clock when the two are computed from different deltas.
-    // Everything below the neck falls freely - those grains have been paid for.
+    // the tokens are the interval's rate, and - in the timed mode - the timer
+    // has to say that the grain belongs there (the last condition keeps the
+    // sand from overtaking the clock when the two are computed from different
+    // deltas). Everything below the neck falls freely - those grains have been
+    // paid for. In the analog mode the timer is not the truth, so the target
+    // check stands down and the valve's pace alone gates the crossing: a flip
+    // is not a rewind there, the pouring continues.
     const bool crossing = (next == kNeckRow);
-    if (crossing && (_tokens < 1.0f || _below >= _target)) {
+    if (crossing && (_tokens < 1.0f || (byClock && _below >= _target))) {
         return false;
     }
 
