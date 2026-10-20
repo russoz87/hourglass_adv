@@ -495,7 +495,12 @@ void loop()
         gDirty = true;
     }
 
-    app::update(gSession, dtMs);
+    // The analog mode reads its finish off the sand (the level of the grid),
+    // so the clock must not resolve any edge by itself; the timed mode keeps
+    // integrating the countdown normally.
+    if (gSettings.clockOn) {
+        app::update(gSession, dtMs);
+    }
 
     if (gSession.state != before) {
         gDirty = true;
@@ -556,7 +561,31 @@ void loop()
 
         const bool     flowing = gSession.state == AppState::Running && gSession.flow != 0;
 
-        gSim.step(stepMs, app::frameLowerShare(gSession), flowing, gravity);
+        // The Clock switch picks who runs the hourglass: on - the timer is the
+        // truth and the neck is sealed (the picture agrees with mm:ss); off -
+        // the analog mode, the sand rules itself (a lying pile keeps draining,
+        // the governor rests), and DONE comes from the sand's real end.
+        gSim.step(stepMs, app::frameLowerShare(gSession), flowing, gravity, gSettings.clockOn);
+
+        // The analog hourglass finishes by its sand: when the last grain has
+        // landed below the throat the real glass is empty, whatever the frozen
+        // clock says - DONE and the chime come from the level, not from mm:ss.
+        // It can happen mid-pause, with the device still lying on an edge. The
+        // mirror case is a rewound glass whose throat is empty: a real FINISH.
+        if (!gSettings.clockOn &&
+            (gSession.state == AppState::Running || gSession.state == AppState::Paused)) {
+            if (gSim.grainsBelow() == sand::kGrains) {
+                app::enter(gSession, AppState::Done, "the sand ran out");
+                gSession.progress = 1.0f;
+                gSession.flow     = 0;
+                gSession.doneSide = gSession.shownSide;
+            } else if (gSim.grainsBelow() == 0 && gSession.state == AppState::Running) {
+                app::enter(gSession, AppState::Finish, "the sand piled back up");
+                gSession.progress = 0.0f;
+                gSession.flow     = 0;
+                gSession.doneSide = gSession.shownSide;
+            }
+        }
 
         gDirty = true;
     } else if (!sandShown) {

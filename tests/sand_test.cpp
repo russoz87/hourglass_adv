@@ -508,6 +508,64 @@ double meanCol(const sand::Simulation& sim, int rowFrom, int rowTo, int* countOu
     return count > 0 ? sum / count : 0.0;
 }
 
+// The analog mode: with `byClock` false the lying neck leaks, and the counter
+// has to follow every crossing - the real end of the sand is read off it.
+void testAnalogLeak()
+{
+    std::printf("\n-- analog mode: the lying neck leaks and counts --\n");
+
+    sand::Simulation sim;
+    sim.reset(60000);  // 1 min
+
+    // Run the cycle for a while: the upper bulb holds most of the load.
+    Clock clock;
+    for (int i = 0; i < 300; ++i) {  // 15 s of the 1 min interval
+        sim.step(kFrameMs, clock.lowerShare(), clock.flowing(), sand::Gravity::Down, true);
+        clock.advance(kFrameMs);
+    }
+    const int belowCells = countRange(sim, sand::kNeckRow, sand::kGridHeight);
+    check(sim.grainsBelow() == belowCells, "the timed mode's counter matches the cells");
+
+    // Lay it flat (screen up) in the analog mode: the neck line opens, the
+    // grains that slide toward the wall may spill across it, and every spill
+    // has to be counted in `_below`.
+    const int belowCounterBefore = sim.grainsBelow();
+    const int belowCellsBefore   = belowCells;
+    int       frames             = 0;
+    bool      leaked             = false;
+    bool      counted            = true;
+    do {
+        sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Left, false);
+        const int belowNow = countRange(sim, sand::kNeckRow, sand::kGridHeight);
+        if (belowNow > belowCellsBefore) {
+            leaked = true;
+        }
+        if (sim.grainsBelow() != belowNow) {
+            counted = false;
+        }
+        ++frames;
+    } while (!sim.settled(sand::Gravity::Left) && frames < 4000);
+    check(leaked, "the analog lying pose drains grains across the neck");
+    check(counted, "the counter follows every leak crossing (cells == counter)");
+    check(countRange(sim, 0, sand::kGridHeight) == sand::kGrains, "the leak conserved the grains");
+    std::printf("      leaked %d grains to the lower bulb side in %d frames\n",
+                sim.grainsBelow() - belowCounterBefore, frames);
+
+    // The clock is not the truth here, so the timer's frozen share must have
+    // been left behind: more grains below than the share says.
+    const int shareTarget = static_cast<int>(clock.lowerShare() * sand::kGrains + 0.5f);
+    check(sim.grainsBelow() > shareTarget, "the analog sand ran ahead of its clock");
+
+    // Stand it back up in the analog mode: the leak stops (no lateral steps),
+    // the grains stay where they are - nothing else moves without the valve.
+    const int beforeStanding = countRange(sim, sand::kNeckRow, sand::kGridHeight);
+    for (int i = 0; i < 100; ++i) {
+        sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Down, false);
+    }
+    check(countRange(sim, sand::kNeckRow, sand::kGridHeight) == beforeStanding,
+          "the analog standing pause keeps the leak stopped");
+}
+
 void testFlatSettle()
 {
     std::printf("\n-- flat pose: settle toward the lower wall --\n");
@@ -682,6 +740,7 @@ int main()
     testDebugJump();
     testPileShape();
     testFlatSettle();
+    testAnalogLeak();
     benchmark();
 
     std::printf("\n%s: %d failure(s)\n", gFailures == 0 ? "PASS" : "FAIL", gFailures);

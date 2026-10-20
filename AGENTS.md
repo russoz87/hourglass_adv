@@ -130,6 +130,14 @@ Facts that keep code honest:
   the neck line (checked by cell counts in the test, not by the counters -
   the counters belong to the valve and the governor and never see a lateral
   step), so nothing runs bulb to bulb while lying.
+- With the `Clock` setting off the mode flips (`byClock=false` in
+  `gSim.step`): the neck line opens for the lateral diagonals, both crossing
+  directions update `grainsBelow()`, the governor rests, and `app::update`
+  stops integrating - the sand is the truth. DONE (everything below the
+  throat) and FINISH (everything above it) then come from the grid, even
+  mid-pause - main.cpp checks the sand counter after every step. Never wire
+  these edges back to the frozen clock: the whole point of the analog mode is
+  that the level, not `mm:ss`, says when the glass is done.
 
 ## Debugging without the IMU (flat on a desk)
 

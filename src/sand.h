@@ -118,7 +118,14 @@ public:
     // while the timer holds still, and then nothing crosses the neck.
     // `gravity` is the direction the grains move in this step: `Down` runs the
     // standing hourglass (valve, governor), `Left`/`Right` the flat settle.
-    void step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity = Gravity::Down);
+    // `byClock` picks who is the truth: true keeps the neck sealed against
+    // lateral crossing and governs the level against `lowerShare` - the timed
+    // mode, where the picture agrees with the timer. false hands the rule to
+    // the sand: a lying pile keeps leaking through the neck, the counters
+    // follow every crossing, the governor rests - DONE then comes from the
+    // sand's real end, not from the clock.
+    void step(uint32_t dtMs, float lowerShare, bool flowing, Gravity gravity = Gravity::Down,
+              bool byClock = true);
 
     // True when the last step moved nothing under the gravity of `gravity`:
     // the pile is at rest for that direction and the caller can stop animating
@@ -158,9 +165,9 @@ private:
 
     void fillUpperBulb();
     bool settleOneStep();
-    bool settleLateralStep(int dir);
+    bool settleLateralStep(int dir, bool byClock);
     bool tryFall(int row, int col);
-    bool tryFallLateral(int row, int col, int dir);
+    bool tryFallLateral(int row, int col, int dir, bool byClock);
     bool govern();
     bool releaseToNeck();
     bool liftToUpperBulb();
