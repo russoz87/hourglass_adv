@@ -572,19 +572,16 @@ void loop()
         // clock says - DONE and the chime come from the level, not from mm:ss.
         // It can happen mid-pause, with the device still lying on an edge. The
         // mirror case is a rewound glass whose throat is empty: a real FINISH.
-        // The model's progress follows the level, so a mid-cycle switch back
-        // to the timed mode resumes from where the sand stands and no phantom
-        // edge can fire.
         if (!gSettings.clockOn &&
             (gSession.state == AppState::Running || gSession.state == AppState::Paused)) {
-            gSession.progress = static_cast<float>(gSim.grainsBelow()) /
-                                static_cast<float>(sand::kGrains);
             if (gSim.grainsBelow() == sand::kGrains) {
                 app::enter(gSession, AppState::Done, "the sand ran out");
+                gSession.progress = 1.0f;
                 gSession.flow     = 0;
                 gSession.doneSide = gSession.shownSide;
             } else if (gSim.grainsBelow() == 0 && gSession.state == AppState::Running) {
                 app::enter(gSession, AppState::Finish, "the sand piled back up");
+                gSession.progress = 0.0f;
                 gSession.flow     = 0;
                 gSession.doneSide = gSession.shownSide;
             }

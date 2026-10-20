@@ -232,8 +232,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 508997 bytes from 1376256 bytes)
-firmware.bin: 509360 bytes
+Flash: [====      ]  37.0% (used 508985 bytes from 1376256 bytes)
+firmware.bin: 509344 bytes
 ```
 
 ## Installing on the device

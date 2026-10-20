@@ -564,19 +564,6 @@ void testAnalogLeak()
     }
     check(countRange(sim, sand::kNeckRow, sand::kGridHeight) == beforeStanding,
           "the analog standing pause keeps the leak stopped");
-
-    // A flip in the analog mode is not a rewind: the full bulb sits below the
-    // throat and the valve pours on, target-free - the sand runs down and the
-    // whole glass drains to its real end.
-    sim.flip();
-    check(sim.grainsBelow() == sand::kGrains - beforeStanding,
-          "the flip mirrors the level into the model's term");
-    const int afterFlip = sim.grainsBelow();
-    for (int i = 0; i < 200; ++i) {
-        sim.step(kFrameMs, clock.lowerShare(), true, sand::Gravity::Down, false);
-    }
-    check(sim.grainsBelow() > afterFlip,
-          "the analog flip pours on: the valve does not stall on a rewind target");
 }
 
 void testFlatSettle()

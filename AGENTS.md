@@ -132,15 +132,12 @@ Facts that keep code honest:
   step), so nothing runs bulb to bulb while lying.
 - With the `Clock` setting off the mode flips (`byClock=false` in
   `gSim.step`): the neck line opens for the lateral diagonals, both crossing
-  directions update `grainsBelow()`, the governor rests, the valve's target
-  check stands down (a flip is not a rewind there - the pouring continues),
-  and `app::update` stops integrating while the model's progress follows the
-  level. DONE (everything below the throat) and FINISH (everything above it)
-  then come from the grid, even mid-pause - main.cpp checks the sand counter
-  after every step. Never wire these edges back to the frozen clock: the whole
-  point of the analog mode is that the level, not `mm:ss`, says when the glass
-  is done - and the level-following progress is what makes a mid-cycle switch
-  back to the timed mode resume cleanly instead of firing phantom edges.
+  directions update `grainsBelow()`, the governor rests, and `app::update`
+  stops integrating - the sand is the truth. DONE (everything below the
+  throat) and FINISH (everything above it) then come from the grid, even
+  mid-pause - main.cpp checks the sand counter after every step. Never wire
+  these edges back to the frozen clock: the whole point of the analog mode is
+  that the level, not `mm:ss`, says when the glass is done.
 
 ## Debugging without the IMU (flat on a desk)
 
