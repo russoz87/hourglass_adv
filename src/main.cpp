@@ -539,12 +539,12 @@ void loop()
     //
     // On a LONG EDGE the hourglass lies on its side for real: the gravity runs
     // across the picture along the device y axis, and the picture's horizontal
-    // axis IS that y axis. With the frame drawn for SideA the picture-right is
-    // device -y (derived from the measured axis table: picture-down is +x,
-    // out-of-screen is +z, right-hand cross), so the sign of y reads straight
-    // off the pose; the SideB frame is the A frame rotated 180 degrees, which
-    // flips the sense. Derived, like every rotation here - still awaiting its
-    // device check for the y direction (y stayed ~0 in every earlier pose).
+    // axis IS that y axis. The direction is device-verified: the pile must run
+    // toward the wall the device rests on, and on the hardware it ran the
+    // opposite of the right-hand cross guess from the x/z axis table (the
+    // triad's y sign was never pinned down by a measurement), so the mapping
+    // below carries the confirmed signs: in a SideA frame LongYUp slides
+    // left, in a SideB frame right; LongYDown the other way round.
     sand::Gravity gravity = sand::Gravity::Down;
     if (gSession.state == AppState::Paused) {
         if (gLastOrientation == Orientation::FlatUp) {
@@ -555,9 +555,9 @@ void loop()
                    gLastOrientation == Orientation::LongYDown) {
             const bool yUp = gLastOrientation == Orientation::LongYUp;
             if (gSession.shownSide == Orientation::SideB) {
-                gravity = yUp ? sand::Gravity::Left : sand::Gravity::Right;
-            } else {
                 gravity = yUp ? sand::Gravity::Right : sand::Gravity::Left;
+            } else {
+                gravity = yUp ? sand::Gravity::Left : sand::Gravity::Right;
             }
         }
     }

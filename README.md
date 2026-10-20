@@ -89,10 +89,13 @@ on an edge returns to the standing physics and the clock.
 The long-edge rest gets the same lying physics - that is the pose where the
 glass truly lies on its side. The gravity now has a real in-picture direction:
 the picture's horizontal axis is the device y axis, so the pose sign plus the
-frame tell which picture wall is lower (`LongYUp` slides right in a SideA
-frame and left in a SideB frame, `LongYDown` the other way round). The
-mapping is derived from the measured axis convention and marked for the
-device check in case the y direction reads inverted on the real hardware.
+frame tell which picture wall is lower (`LongYUp` slides left in a SideA
+frame and right in a SideB frame, `LongYDown` the other way round). Direction
+confirmed on the device: the sand runs to the wall the device rests on. The
+first mapping was derived by a right-hand cross from the x/z axis table and
+came out inverted on the hardware - the triad's y sign had never been
+measured (`y` stayed ~0 in every earlier pose), which is exactly what this
+check pinned down.
 
 One repose rule makes the settle repeatable: a grain whose straight and
 diagonal falls are blocked but whose side column is two or more levels lower
@@ -134,11 +137,9 @@ gyroscope reads more than 40 dps in total the stability timer restarts, so a fli
 is not accepted halfway through. Resting on a long edge reads as dominant `y`
 and is reported as `LongYUp` / `LongYDown` - the hourglass lying on its side:
 the sand axis lies horizontal, the pause keeps the sand animating, and the
-pile slides across the picture. Which of the two long edges is which maps to
-the picture side through the sign of `y` and the drawn frame (see the flat
-section of "Timer model"); the mapping is derived from the measured axis table
-above and still awaits its own device check - `y` stayed ~0 in every earlier
-measurement.
+pile slides across the picture toward the wall the device rests on
+(device-verified; the first derived mapping ran the pile to the opposite
+wall, which pinned down the triad's never-measured `y` sign).
 
 ### Debug paths (no IMU needed)
 
@@ -314,11 +315,11 @@ After installing the build:
     the other face down slides the pile to the other wall; standing it back on
     an edge resumes the countdown and the old pile shape falls into place.
 13. Rest the device on one of its long edges while counting down: the pause is
-    the lying-hourglass pose, the pile slides across the picture on both edges
-    (the direction depends on the edge and on the last standing side). The y
-    direction is derived, not yet measured - if a long edge slides the pile to
-    the upper-looking wall, the sign in the `LongY` branch of the gravity pick
-    in `main.cpp` is the knob.
+    the lying-hourglass pose, the sand slides across the picture into the wall
+    the device rests on, on both edges and from both standing sides (the
+    frame mirrors the direction). The direction mapping is device-verified;
+    if it ever reads wrong after a hardware or rotation change, the sign
+    lives in the `LongY` branch of the gravity pick in `main.cpp`.
 
 ## Next stages
 

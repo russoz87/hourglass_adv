@@ -92,11 +92,13 @@ Facts that keep code honest:
 - IMU axes (measured on device, see the table in README): `z` is the screen
   normal, `x` is the sand axis, and `y` is the long-edge axis: resting on a
   long edge reads dominant `y` and reports `LongYUp`/`LongYDown` (the hourglass
-  lying on its side - it gets the lateral settle with a derived, not yet
-  device-checked direction mapping). Thresholds, smoothing (80 ms), debouncing
-  (400 ms) and the 40 dps flip guard live in `src/orientation.cpp` - they are
-  measured, not invented, so don't tune them without the device. The
-  screen-down pose is still **unconfirmed** on device.
+  lying on its side - it gets the lateral settle, and the direction is
+  device-verified: the pile runs to the wall the device rests on; the first
+  right-hand-cross guess was inverted, which finally pinned the triad's y
+  sign). Thresholds, smoothing (80 ms), debouncing (400 ms) and the 40 dps
+  flip guard live in `src/orientation.cpp` - they are measured, not invented,
+  so don't tune them without the device. The screen-down pose is still
+  **unconfirmed** on device.
 - Audio: speaker is configured once at boot (AdvanceOS style:
   `sample_rate = 96000`, no `end()` dance; the rate is one constant,
   `kSpeakerSampleRate` in `main.cpp`, shared by the config and the chime -
