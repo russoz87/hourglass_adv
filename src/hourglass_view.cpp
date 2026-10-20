@@ -202,12 +202,12 @@ void hourglass_view::drawRunning(const app::Session& session, const sand::Simula
     if (showClock) {
         char clock[8];
         app::formatClock(app::remainingSeconds(session), clock, sizeof(clock));
-        drawCentered(g, clock, kPortraitWidth / 2, 6, 3, theme::kText);
-        drawCentered(g, interval, kPortraitWidth / 2, 34, 1, theme::kTextDim);
+        drawCentered(g, clock, kPortraitWidth / 2, 4, 3, theme::kText);
+        drawCentered(g, interval, kPortraitWidth / 2, 30, 1, theme::kTextDim);
     } else {
         // The clock is hidden by setting: the interval alone takes its place,
         // small and dim, so the top of the screen keeps its structure.
-        drawCentered(g, interval, kPortraitWidth / 2, 10, 1, theme::kTextDim);
+        drawCentered(g, interval, kPortraitWidth / 2, 8, 1, theme::kTextDim);
     }
 
     // The grains are drawn where the simulation has them, in the frame of the

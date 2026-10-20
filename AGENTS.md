@@ -126,7 +126,10 @@ Facts that keep code honest:
   slope steeper than 45 degrees rolls off (a side column two or more levels
   lower takes it). Without it the wall-hugging pile of the previous slide
   would keep its shape through the standing phases and the next lie-down
-  would have nothing to slide.
+  would have nothing to slide. The lateral spill diagonals are forbidden at
+  the neck line (checked by cell counts in the test, not by the counters -
+  the counters belong to the valve and the governor and never see a lateral
+  step), so nothing runs bulb to bulb while lying.
 
 ## Debugging without the IMU (flat on a desk)
 

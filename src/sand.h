@@ -40,8 +40,9 @@
  *              picture: `step()` is called with Gravity::Left or ::Right and
  *              the grains slide toward the lower wall of their own bulb, with
  *              the spill diagonals of a lying pile. The valve and the governor
- *              stand still, and a lateral step never changes the row, so
- *              nothing can cross the neck sideways.
+ *              stand still, and a lateral step never crosses the neck line
+ *              (the straight slide does not leave its row; the diagonals are
+ *              forbidden at the neck line), so nothing runs bulb to bulb.
  *
  * A flip is not a rebuild of the scene: the grid is rotated 180 degrees, so the
  * sand keeps its place in the hand while the frame turns with the device. The

@@ -294,9 +294,10 @@ bool sand::Simulation::tryFallLateral(int row, int col, int dir)
     }
 
     // Straight, toward the wall - then the two spill diagonals, in a random
-    // order. A lateral step never leaves the row: the row is the boundary
-    // between the bulbs, so nothing can cross the neck sideways, and the
-    // grains of the neck row slide inside the neck.
+    // order. The straight slide never leaves the row; the diagonals may step
+    // to the adjacent row for the slope's spill, but the check below forbids
+    // them at the neck line, so the bulbs stay separated and nothing crosses
+    // the neck sideways.
     const int next = col + dir;
     if (next >= first && next <= last && !grain(row, next)) {
         takeGrain(row, col);
@@ -308,6 +309,12 @@ bool sand::Simulation::tryFallLateral(int row, int col, int dir)
     for (int i = 0; i < 2; ++i) {
         const int r = row + (((i == 0) == upFirst) ? -1 : 1);
         if (r < 0 || r >= kGridHeight) {
+            continue;
+        }
+        // A spill diagonal never carries the grain across the neck line: the
+        // rows below it belong to the other bulb, and the lateral slide has
+        // no valve whose tokens could pay for their crossing.
+        if ((r < kNeckRow) != (row < kNeckRow)) {
             continue;
         }
         if (next < rowFirst(r) || next > rowLast(r) || grain(r, next)) {

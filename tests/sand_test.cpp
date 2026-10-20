@@ -81,6 +81,20 @@ float ratePerMs(uint32_t durationMs)
     return static_cast<float>(sand::kGrains) / static_cast<float>(durationMs);
 }
 
+// The number of occupied cells in the rows [from, to) - a direct count, for
+// the checks where the maintained counters cannot be trusted to describe the
+// grid.
+int countRange(const sand::Simulation& sim, int from, int to)
+{
+    int n = 0;
+    for (int r = from; r < to && r < sand::kGridHeight; ++r) {
+        for (int c = 0; c < sand::kGridWidth; ++c) {
+            n += sim.cell(c, r) ? 1 : 0;
+        }
+    }
+    return n;
+}
+
 // Walks the timer like main.cpp does: `dtMs` per frame, one frame per call.
 struct Clock
 {
@@ -539,6 +553,13 @@ void testFlatSettle()
     check(!sim.settled(sand::Gravity::Left), "a flat pose re-arms the lateral settle");
     int  frames  = 0;
     bool crossed = false;
+    // Real cell counts on both sides of the neck line: the grainsBelow()
+    // counter is maintained by the valve and the governor, which a lateral
+    // step never runs, so only the cells prove the boundary held - once the
+    // spill diagonals smuggled grains over the line while every counter read
+    // clean.
+    const int belowCellsBefore = countRange(sim, sand::kNeckRow, sand::kGridHeight);
+    const int aboveCellsBefore = countRange(sim, 0, sand::kNeckRow);
     do {
         sim.step(kFrameMs, clock.lowerShare(), false, sand::Gravity::Left);
         if (sim.grainsBelow() != belowFlat) {
@@ -547,6 +568,9 @@ void testFlatSettle()
         ++frames;
     } while (!sim.settled(sand::Gravity::Left) && frames < 2000);
     check(!crossed, "no grain crosses the neck while flat");
+    check(countRange(sim, sand::kNeckRow, sand::kGridHeight) == belowCellsBefore &&
+              countRange(sim, 0, sand::kNeckRow) == aboveCellsBefore,
+          "the neck line held: the bulb sides kept their grains (cell counts)");
     check(allInsideMask(sim), "the flat settle keeps every grain in the glass");
     check(countGrains(sim) == sand::kGrains, "the flat settle conserved the grains");
     check(sim.settled(sand::Gravity::Left), "the flat sand comes to rest");

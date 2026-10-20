@@ -111,6 +111,14 @@ keeps a lean, the glass itself stops the grains there. Without it, the second
 lie-down would find the pile already at the wall and nothing to move - the
 slide would have happened once and never again.
 
+The lateral diagonals never carry a grain across the neck line: a spill step
+to the adjacent row is forbidden when the two rows sit on opposite sides of
+the throat, so the bulbs stay separated whatever the pose does. (The first
+version of this rule read the maintained counters, which the lateral steps do
+not touch, and a lying pile leaked ~280 grains through the neck per settle -
+the "several seconds" desync at unpausing - before the check moved to direct
+cell counts.)
+
 The idle animation gate is direction aware: the pause first runs the standing
 physics until the stream has landed (the flat pose is reported only after the
 pose hold time), and then the gravity change re-arms the settle, so the lying
@@ -211,8 +219,8 @@ Current image (stage 4):
 
 ```
 RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
-Flash: [====      ]  37.0% (used 508749 bytes from 1376256 bytes)
-firmware.bin: 509120 bytes
+Flash: [====      ]  37.0% (used 508801 bytes from 1376256 bytes)
+firmware.bin: 509168 bytes
 ```
 
 ## Installing on the device
