@@ -50,7 +50,11 @@ USB-flashed firmware.
 ## Commands
 
 ```sh
-pio run            # single environment: cardputer-adv (the app)
+make              # the firmware (build/hourglass.bin) and the host tests
+make firmware     # just the firmware: pio run
+make test         # just the host tests
+make clean        # drop the build tree and the images
+
 pio device monitor --baud 115200   # USB CDC is enabled on boot
 ```
 
@@ -59,7 +63,7 @@ device from the Launcher SD menu; never flash it over USB.
 
 Host tests (the sand simulation and the state machine are plain C++; the
 state-machine test stubs the pose API and the device log - see its file
-header):
+header). `make test` builds and runs both; by hand:
 
 ```sh
 g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp \

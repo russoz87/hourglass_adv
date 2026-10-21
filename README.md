@@ -188,12 +188,20 @@ Requirements: PlatformIO Core 6 (`pio`) and a network connection for the first
 build, which downloads the ESP32-S3 toolchain (a few hundred MB, several
 minutes).
 
+The `Makefile` is the front door - the firmware itself is built by
+PlatformIO, which resolves the pinned libraries, the board flags and the app
+slot layout, and checks the image size:
+
 ```sh
-pio run                 # builds the default env: cardputer-adv
+make              # the firmware and the host tests
+make firmware     # just the firmware: pio run
+make test         # just the host tests (sand simulation, timer state machine)
+make clean        # drop the build tree and the images
 ```
 
 The image lands in `build/hourglass.bin` (scripts/copy_out.py copies it there
-after the build; PlatformIO's cache tree stays in `.pio/`).
+after the build; PlatformIO's cache tree stays in `.pio/`, the host test
+binaries join the image in `build/`).
 
 Pinned versions, all set in `platformio.ini` - they are the result of
 bisecting real device panics, not defaults:
@@ -266,6 +274,7 @@ appears on the USB-C port the device is already connected through.
 ## Project layout
 
 ```
+Makefile                     the build entry points (firmware, host tests, clean)
 platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 build/hourglass.bin         the install image, written by the build (git-ignored)
