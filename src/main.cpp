@@ -1,5 +1,5 @@
 /*
- * Hourglass - stage 4 firmware for the M5Stack Cardputer-ADV.
+ * Hourglass - sand-timer firmware for the M5Stack Cardputer-ADV.
  *
  * The app is complete: menu and settings, NVS, the timer state machine, IMU
  * orientation, the completion chime, and the falling-sand animation that draws the
@@ -51,6 +51,7 @@
 #include "sand.h"
 #include "settings.h"
 #include "ui_menu.h"
+#include "version.h"
 
 namespace {
 
@@ -431,7 +432,7 @@ void setup()
     gOrientation.begin(millis());
     gLastOrientation = gOrientation.update(millis());
 
-    Serial.printf("\nHourglass stage 4\n");
+    Serial.printf("\nHourglass v%s\n", HG_VERSION);
     const esp_reset_reason_t bootReason = esp_reset_reason();
     hgLog("reset    : %s (%d)", resetReasonName(bootReason), static_cast<int>(bootReason));
     Serial.printf("board    : %s\n", boardName(M5.getBoard()));

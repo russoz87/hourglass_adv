@@ -8,19 +8,19 @@ to break while looking clever.
 
 Hourglass - a sand-timer app for the **M5Stack Cardputer-ADV** (ESP32-S3,
 8 MB flash, 240x135 display, TCA8418 keyboard, BMI270 IMU, ES8311 codec).
-Stage 4: the stage-3 app (menu/settings, NVS, timer state machine,
-orientation, falling-sand animation, chime) plus flat-pose physics - a flat
-device settles its sand sideways, nothing crosses the neck. There is no
-Launcher-less firmware mode: the app ships as a **Launcher app**, not as a
-USB-flashed firmware.
+The app: menu/settings, NVS, timer state machine, orientation, falling-sand
+animation, chime, plus flat-pose physics - a flat device settles its sand
+sideways, nothing crosses the neck. There is no Launcher-less firmware mode
+on the development device: the app ships as a **Launcher app**, installed
+from microSD; the full-flash bundle (build/burner/) is the distribution form
+for other devices.
 
 ## Hard rules
 
 1. **Never flash this device over USB.** `pio run -t upload`, `-t uploadfs`,
-   `-t erase` and `esptool` would overwrite the installed Launcher.
-   `scripts/guard_usb_flash.py` makes those targets fail on purpose - do not
-   bypass or neuter it. Building produces the `.bin`; install goes through
-   the Launcher SD-card menu (steps in README).
+   `-t erase` and `esptool` would overwrite the installed Launcher. Building
+   produces the `.bin`; install goes through the Launcher SD-card menu (steps
+   in README).
 2. **Respect the image size budget.** Launcher installs into one slot at
    `0x10000`, `0x150000` bytes long (`partitions.csv`); `board_upload.maximum_size`
    is set to that, so an oversized build fails the build. Do not raise the

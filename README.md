@@ -5,7 +5,7 @@ An hourglass (sand timer) firmware for the **M5Stack Cardputer-ADV**
 ES8311 codec). Putting the device on its side starts the countdown, turning it
 over reverses it, and laying it flat pauses it - like a real hourglass.
 
-## Status: stage 4 - flat-pose physics
+## Status
 
 The app runs: menu and settings (including the `Sound` and `Clock` switches), NVS,
 timer state machine, IMU orientation, the soft rendered completion chime, and the
@@ -162,7 +162,7 @@ wall, which pinned down the triad's never-measured `y` sign).
 ### Serial log
 
 ```
-Hourglass stage 4
+Hourglass v0.1.0
 [hg      3] reset    : power-on (1)
 board    : M5Cardputer-ADV
 display  : 240x135 landscape, 135x240 portrait
@@ -224,7 +224,7 @@ manually, the way the shipped AdvanceOS apps configure it. `M5Cardputer`
 (0.2.22+) reworks the speaker task and panics on this board, which is why the
 pair is pinned at 0.2.20 / 0.2.27 and must only move together.
 
-Current image (stage 4):
+Current image:
 
 ```
 RAM:   [===       ]  26.8% (used  87892 bytes from 327680 bytes)
@@ -239,8 +239,9 @@ installed as a *Launcher app*, not as a flash-over-USB firmware. Flashing with
 esptool/PIO would overwrite Launcher, so:
 
 > **Do not run `pio run -t upload`, `pio run -t uploadfs` or `esptool` against
-> this device.** `scripts/guard_usb_flash.py` makes those targets fail on
-> purpose.
+> a device that runs the Launcher** - a USB flash overwrites it. Use the
+> microSD install below there; the full-flash path is for devices dedicated
+> to Hourglass (see "Distributing via M5Burner").
 
 Install steps:
 
@@ -258,8 +259,33 @@ Install steps:
 Launcher writes an installed app into a single slot at `0x10000` of
 `0x150000` bytes (its `custom_8Mb.csv`, mirrored in `partitions.csv`).
 `board_upload.maximum_size` is set to that size, so `pio run` fails instead of
-producing a binary that cannot be installed. Stage 4 uses 508801 of 1376256
+producing a binary that cannot be installed. The image uses 508801 of 1376256
 bytes, leaving ~850 kB.
+
+## Distributing via M5Burner
+
+Every build also assembles the parts of a **full device flash** in
+`build/burner/`: `bootloader.bin` (flashed at `0x0000`), `partitions.bin`
+(`0x8000`) and `hourglass.bin` (`0x10000`). That bundle is what a public
+distribution flashes, and burner.m5stack.com is the catalog it is shared
+through:
+
+- **Publishing**: in the desktop M5Burner, sign in with an M5Stack community
+  account, open `USER CUSTOM` → `Publish`, and fill in name, version
+  (`src/version.h`), description, device type, the GitHub link and a cover
+  image. If the form asks for a drafted package rather than a bare `.bin`,
+  zip the `build/burner/` folder - it is the same three images the M5Burner
+  Firmware Exporter produces.
+- **Installing from the catalog**: users pick the Cardputer-ADV, select
+  Hourglass and burn - USB, no building required.
+
+> Burning a full flash **replaces whatever firmware is on the device**; on one
+> that ran the Launcher, the Launcher is gone and the device boots Hourglass
+> directly (re-flash the Launcher to go back). On a device that should keep
+> its Launcher, install from microSD instead ("Installing on the device").
+
+The app is fine standalone: it has no parent screen (the `Del` key just logs
+"no screen to go back to"), so the burned image behaves like the launcher app.
 
 ## Serial monitor
 
@@ -277,9 +303,9 @@ appears on the USB-C port the device is already connected through.
 Makefile                     the build entry points (firmware, host tests, clean)
 platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
-build/hourglass.bin         the install image, written by the build (git-ignored)
-scripts/guard_usb_flash.py  blocks upload/erase targets
-scripts/copy_out.py         copies the built image to build/hourglass.bin
+build/hourglass.bin         install image for the Launcher SD install (git-ignored)
+build/burner/               the full-flash bundle: bootloader + partitions + image
+scripts/copy_out.py         copies the built image and assembles build/burner/
 src/                        application modules, see the table above
 tests/                      host tests, plain C++ (g++, no Arduino):
                             g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp
@@ -351,3 +377,9 @@ The roadmap is empty: the falling-sand animation, the flat-pose physics (both
 flat faces and both long edges), the Clock switch and the soft rendered chime
 are all shipped and confirmed on the device. What remains is polish and
 whatever the device use suggests next.
+
+## License
+
+MIT - see `LICENSE`. The firmware is built with M5Stack's libraries
+(M5Unified, M5GFX, M5Cardputer) on the arduino-esp32 core.
+
