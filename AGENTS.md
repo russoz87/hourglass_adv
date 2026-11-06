@@ -61,6 +61,12 @@ pio device monitor --baud 115200   # USB CDC is enabled on boot
 Artifact: `build/hourglass.bin` - install it into the
 device from the Launcher SD menu; never flash it over USB.
 
+Releases are cut by CI: pushing a `v*` tag runs
+`.github/workflows/release.yml` (host tests + `pio run` on ubuntu, the
+PlatformIO package cache keyed on `platformio.ini`) and attaches
+`hourglass.bin` plus `hourglass-burner.zip` (the zipped `build/burner/`
+bundle) to a GitHub release. Bump `src/version.h` together with the tag.
+
 Host tests (the sand simulation and the state machine are plain C++; the
 state-machine test stubs the pose API and the device log - see its file
 header). `make test` builds and runs both; by hand:

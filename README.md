@@ -203,6 +203,11 @@ The image lands in `build/hourglass.bin` (scripts/copy_out.py copies it there
 after the build; PlatformIO's cache tree stays in `.pio/`, the host test
 binaries join the image in `build/`).
 
+Tagged releases are built by GitHub Actions (`.github/workflows/release.yml`):
+pushing a `v*` tag runs the host tests and `pio run` on a clean runner and
+publishes a release carrying `hourglass.bin` and `hourglass-burner.zip` (the
+zipped `build/burner/` bundle) - no local toolchain needed to cut a release.
+
 Pinned versions, all set in `platformio.ini` - they are the result of
 bisecting real device panics, not defaults:
 
@@ -301,6 +306,7 @@ appears on the USB-C port the device is already connected through.
 
 ```
 Makefile                     the build entry points (firmware, host tests, clean)
+.github/workflows/release.yml tag builds: host tests + firmware, a GitHub release
 platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 build/hourglass.bin         install image for the Launcher SD install (git-ignored)

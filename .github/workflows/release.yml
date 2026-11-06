@@ -1,0 +1,63 @@
+# Release build: pushing a version tag (v0.1.0, v0.2.0, ...) builds the
+# firmware from a clean checkout and attaches the two distribution forms to a
+# GitHub Release:
+#
+#   hourglass.bin          the microSD image for the Launcher install
+#   hourglass-burner.zip   the full-flash bundle (bootloader + partitions +
+#                          app) for the M5Burner distribution
+#
+# The heavy lifting is the same as locally: `make test` (plain g++) and
+# `pio run`, whose post action (scripts/copy_out.py) delivers build/.
+# The PlatformIO package cache is keyed on platformio.ini, so the pinned
+# toolchain is downloaded once and reused until the pins change.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache the PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Host tests
+        run: make test
+
+      - name: Build the firmware
+        run: pio run
+
+      - name: Package the burner bundle
+        working-directory: build/burner
+        run: zip ../hourglass-burner.zip bootloader.bin partitions.bin hourglass.bin
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Hourglass ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            build/hourglass.bin
+            build/hourglass-burner.zip
