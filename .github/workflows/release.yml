@@ -1,10 +1,8 @@
 # Release build: pushing a version tag (v0.1.0, v0.2.0, ...) builds the
-# firmware from a clean checkout and attaches the two distribution forms to a
-# GitHub Release:
+# firmware from a clean checkout and attaches the image to a GitHub Release:
 #
-#   hourglass.bin          the microSD image for the Launcher install
-#   hourglass-burner.zip   the full-flash bundle (bootloader + partitions +
-#                          app) for the M5Burner distribution
+#   hourglass.bin   the app image - installs from microSD via the Launcher
+#                   and is the file the M5Burner publish form uploads
 #
 # The heavy lifting is the same as locally: `make test` (plain g++) and
 # `pio run`, whose post action (scripts/copy_out.py) delivers build/.
@@ -48,10 +46,6 @@ jobs:
       - name: Build the firmware
         run: pio run
 
-      - name: Package the burner bundle
-        working-directory: build/burner
-        run: zip ../hourglass-burner.zip bootloader.bin partitions.bin hourglass.bin
-
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
@@ -60,4 +54,3 @@ jobs:
           generate_release_notes: true
           files: |
             build/hourglass.bin
-            build/hourglass-burner.zip

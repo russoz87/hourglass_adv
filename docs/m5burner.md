@@ -10,8 +10,8 @@ description itself (paste everything below the divider).
 | Name | Hourglass |
 | Version | 0.1.1 (bump `src/version.h` and re-tag for each release) |
 | Device Type | Cardputer-ADV |
-| GitHub | https://github.com/russoz87/hourglass_adv |
-| FirmWare | `hourglass-burner.zip` from the GitHub release (bootloader + partitions + app); if the form wants a folder, use the unzipped contents |
+| GitHub | <https://github.com/russoz87/hourglass_adv> |
+| FirmWare | `hourglass.bin` from the GitHub release (the form takes the single app image) |
 | Cover | a photo or screenshot of the running hourglass, 240x135 or larger |
 
 ---
@@ -69,12 +69,13 @@ M5Burner at any time).
 
 To **keep** the Launcher, install Hourglass as a Launcher app instead: copy
 `hourglass.bin` from the GitHub release to a microSD card and install it from
-the Launcher's SD-card file menu. Both images are attached to every release.
+the Launcher's SD-card file menu. The same `hourglass.bin` is attached to
+every release.
 
 ## Links
 
 - Source code, build instructions and the full manual:
-  https://github.com/russoz87/hourglass_adv
+  <https://github.com/russoz87/hourglass_adv>
 - Releases (microSD image + full-flash bundle):
-  https://github.com/russoz87/hourglass_adv/releases
+  <https://github.com/russoz87/hourglass_adv/releases>
 - Licence: MIT

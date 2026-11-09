@@ -205,8 +205,8 @@ binaries join the image in `build/`).
 
 Tagged releases are built by GitHub Actions (`.github/workflows/release.yml`):
 pushing a `v*` tag runs the host tests and `pio run` on a clean runner and
-publishes a release carrying `hourglass.bin` and `hourglass-burner.zip` (the
-zipped `build/burner/` bundle) - no local toolchain needed to cut a release.
+publishes a release carrying `hourglass.bin` - no local toolchain needed to
+cut a release.
 
 Pinned versions, all set in `platformio.ini` - they are the result of
 bisecting real device panics, not defaults:
@@ -269,18 +269,16 @@ bytes, leaving ~850 kB.
 
 ## Distributing via M5Burner
 
-Every build also assembles the parts of a **full device flash** in
-`build/burner/`: `bootloader.bin` (flashed at `0x0000`), `partitions.bin`
-(`0x8000`) and `hourglass.bin` (`0x10000`). That bundle is what a public
-distribution flashes, and burner.m5stack.com is the catalog it is shared
-through:
+The same `build/hourglass.bin` also flashes as a plain device firmware:
+M5Burner writes the app image into the app slot at `0x10000`, and the
+bootloader and partition table are already on the device. The catalog it is
+shared through is burner.m5stack.com:
 
 - **Publishing**: in the desktop M5Burner, sign in with an M5Stack community
   account, open `USER CUSTOM` → `Publish`, and fill in name, version
   (`src/version.h`), description, device type, the GitHub link and a cover
-  image. If the form asks for a drafted package rather than a bare `.bin`,
-  zip the `build/burner/` folder - it is the same three images the M5Burner
-  Firmware Exporter produces.
+  image. The form takes the single `hourglass.bin`; the description to paste
+  lives in `docs/m5burner.md`.
 - **Installing from the catalog**: users pick the Cardputer-ADV, select
   Hourglass and burn - USB, no building required.
 
@@ -310,8 +308,7 @@ Makefile                     the build entry points (firmware, host tests, clean
 platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 build/hourglass.bin         install image for the Launcher SD install (git-ignored)
-build/burner/               the full-flash bundle: bootloader + partitions + image
-scripts/copy_out.py         copies the built image and assembles build/burner/
+scripts/copy_out.py         copies the built image to build/hourglass.bin
 src/                        application modules, see the table above
 tests/                      host tests, plain C++ (g++, no Arduino):
                             g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp

@@ -12,8 +12,7 @@ The app: menu/settings, NVS, timer state machine, orientation, falling-sand
 animation, chime, plus flat-pose physics - a flat device settles its sand
 sideways, nothing crosses the neck. There is no Launcher-less firmware mode
 on the development device: the app ships as a **Launcher app**, installed
-from microSD; the full-flash bundle (build/burner/) is the distribution form
-for other devices.
+from microSD; the same hourglass.bin is what the M5Burner catalog distributes.
 
 ## Hard rules
 
@@ -64,8 +63,8 @@ device from the Launcher SD menu; never flash it over USB.
 Releases are cut by CI: pushing a `v*` tag runs
 `.github/workflows/release.yml` (host tests + `pio run` on ubuntu, the
 PlatformIO package cache keyed on `platformio.ini`) and attaches
-`hourglass.bin` plus `hourglass-burner.zip` (the zipped `build/burner/`
-bundle) to a GitHub release. Bump `src/version.h` together with the tag.
+`hourglass.bin` to a GitHub release. Bump `src/version.h` together with the
+tag.
 
 Host tests (the sand simulation and the state machine are plain C++; the
 state-machine test stubs the pose API and the device log - see its file
