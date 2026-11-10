@@ -6,8 +6,10 @@
 # Makefile would only mean re-implementing all of that, so PlatformIO stays
 # and this file is the convenient front door:
 #
-#   make            the firmware (build/hourglass.bin) and the host tests
+#   make            the firmware (build/hourglass.bin), the M5Burner image
+#                   (build/hourglass-m5burner.bin) and the host tests
 #   make firmware  just the firmware
+#   make m5burner  the firmware plus the merged full-flash M5Burner image
 #   make test       just the host tests (sand + state machine)
 #   make clean      drop the build tree and the images
 #
@@ -18,12 +20,15 @@ PIO       := pio
 BUILD_DIR := build
 HEADERS   := $(wildcard src/*.h)
 
-.PHONY: all firmware test clean
+.PHONY: all firmware m5burner test clean
 
-all: firmware test
+all: firmware m5burner test
 
 firmware:
 	$(PIO) run
+
+m5burner: firmware
+	python3 scripts/merge_m5burner.py
 
 test: $(BUILD_DIR)/sand_test $(BUILD_DIR)/app_state_test
 	$(BUILD_DIR)/sand_test

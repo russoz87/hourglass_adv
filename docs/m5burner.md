@@ -11,7 +11,7 @@ description itself (paste everything below the divider).
 | Version | 0.1.1 (bump `src/version.h` and re-tag for each release) |
 | Device Type | Cardputer-ADV |
 | GitHub | <https://github.com/russoz87/hourglass_adv> |
-| FirmWare | `hourglass.bin` from the GitHub release (the form takes the single app image) |
+| FirmWare | `hourglass-m5burner.bin` from the GitHub release - the merged full-flash image (Burner writes the uploaded file from `0x0`; the app-only `hourglass.bin` is **not** bootable that way) |
 | Cover | a photo or screenshot of the running hourglass, 240x135 or larger |
 
 ---

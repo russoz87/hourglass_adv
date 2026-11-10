@@ -269,16 +269,24 @@ bytes, leaving ~850 kB.
 
 ## Distributing via M5Burner
 
-The same `build/hourglass.bin` also flashes as a plain device firmware:
-M5Burner writes the app image into the app slot at `0x10000`, and the
-bootloader and partition table are already on the device. The catalog it is
-shared through is burner.m5stack.com:
+`make` (and every CI release) produces a second image for the catalog:
+**`hourglass-m5burner.bin`** - a merged full-flash image (bootloader at
+`0x0000`, partition table at `0x8000`, OTA-data reset at `0xE000`, the app at
+`0x10000`), assembled by `scripts/merge_m5burner.py`.
+
+M5Burner writes an uploaded custom firmware **from address `0x0`**, so the
+app-only `hourglass.bin` must *not* be uploaded there: with no bootloader at
+`0x0` the device does not boot ("Invalid image block, can't boot"). Use the
+merged image in the publish form; `hourglass.bin` stays the microSD image
+for the Launcher install.
 
 - **Publishing**: in the desktop M5Burner, sign in with an M5Stack community
   account, open `USER CUSTOM` → `Publish`, and fill in name, version
   (`src/version.h`), description, device type, the GitHub link and a cover
-  image. The form takes the single `hourglass.bin`; the description to paste
-  lives in `docs/m5burner.md`.
+  image. The form takes `hourglass-m5burner.bin`; the description to paste
+  lives in `docs/m5burner.md`. Publish privately first and burn the image on
+  a real device through the **Share Code** (`Share Burn`) before going
+  public.
 - **Installing from the catalog**: users pick the Cardputer-ADV, select
   Hourglass and burn - USB, no building required.
 
@@ -308,7 +316,9 @@ Makefile                     the build entry points (firmware, host tests, clean
 platformio.ini              build configuration (pinned platform/libraries)
 partitions.csv              Launcher app-slot layout, used for the size limit
 build/hourglass.bin         install image for the Launcher SD install (git-ignored)
+build/hourglass-m5burner.bin  merged full-flash image for M5Burner (git-ignored)
 scripts/copy_out.py         copies the built image to build/hourglass.bin
+scripts/merge_m5burner.py   merges bootloader + partitions + otadata + app at 0x0
 src/                        application modules, see the table above
 tests/                      host tests, plain C++ (g++, no Arduino):
                             g++ -std=c++17 -O2 -I src tests/sand_test.cpp src/sand.cpp
